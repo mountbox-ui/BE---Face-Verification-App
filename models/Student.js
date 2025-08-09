@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 const studentSchema = new mongoose.Schema({
     name: String,
-    // Legacy roll number (kept for compatibility)
     rollNumber: String,
     // Preferred registration number from Excel
     registrationNo: String,

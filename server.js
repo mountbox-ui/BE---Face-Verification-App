@@ -24,7 +24,7 @@ const allowedOrigins = [
 // }));
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: 'https://fe-face-verification-app.onrender.com',
   credentials: true
 }))
 
