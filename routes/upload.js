@@ -1,0 +1,1 @@
+const uploadRoute = require('./routes/upload');

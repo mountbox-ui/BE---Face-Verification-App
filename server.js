@@ -51,8 +51,8 @@ app.use('/api/school', schoolRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/verification', verificationRoutes);
 
-const uploadRoutes = require('./routes/upload');
-app.use('/api', uploadRoutes);
+const uploadRoute = require('./routes/upload');
+app.use('/api', uploadRoute);
 
 
 const PORT = process.env.PORT || 5000;
