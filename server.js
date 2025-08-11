@@ -75,6 +75,7 @@ app.use('/student', studentRoutes);
 app.use('/verification', verificationRoutes);
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // Removed non-existent upload route
 
