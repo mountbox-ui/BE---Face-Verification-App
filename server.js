@@ -40,8 +40,9 @@ app.use(cors({
   credentials: false
 }));
 
-// Ensure preflight requests succeed for all routes
-app.options('*', cors());
+// Ensure preflight requests succeed for all routes (Express 5 uses path-to-regexp@6)
+// Using (.*) instead of * to avoid path-to-regexp error
+app.options('(.*)', cors());
 
 
 // Basic request logger to help debug 404s in production
