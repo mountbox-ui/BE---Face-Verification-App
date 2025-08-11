@@ -193,10 +193,11 @@ router.get('/:schoolId', auth, async (req, res) => {
     }
     
     // Ensure groupPhoto is a consistent relative URL under /uploads
-    const groupPhotoRelative = school.groupPhoto && school.groupPhoto.startsWith('uploads')
+    const uploadsRoot = (process.env.UPLOADS_DIR || 'uploads').replace(/\\/g, '/');
+    const groupPhotoRelative = school.groupPhoto && school.groupPhoto.startsWith(uploadsRoot)
       ? school.groupPhoto
       : school.groupPhoto
-        ? `uploads/${school.groupPhoto.replace(/^.*uploads[\\\/]?/, '')}`
+        ? `${uploadsRoot}/${school.groupPhoto.replace(/^.*uploads[\\\/]?/, '')}`
         : null;
 
     res.json({

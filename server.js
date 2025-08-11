@@ -50,8 +50,8 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-// Ensure uploads directory exists for disk storage
-const uploadsDir = path.join(__dirname, 'uploads');
+// Ensure uploads directory exists for disk storage (supports Render disk via env)
+const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
