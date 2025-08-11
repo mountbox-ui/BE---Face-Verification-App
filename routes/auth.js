@@ -6,6 +6,20 @@ const User = require('../models/User');
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
+    // Optional test login for demo environments
+    if (
+      process.env.ALLOW_TEST_LOGIN === 'true' &&
+      username === 'testuser' &&
+      password === 'password123'
+    ) {
+      const token = jwt.sign(
+        { username: 'testuser', demo: true },
+        process.env.JWT_SECRET || 'dev_secret',
+        { expiresIn: '1d' }
+      );
+      return res.json({ token });
+    }
+
     const user = await User.findOne({ username });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
