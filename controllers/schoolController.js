@@ -69,11 +69,26 @@ async function extractGroupDescriptors(imagePath) {
   }
 }
 
-// Helper to get first non-empty value for a set of possible header names
-function getCell(row, possibleKeys) {
-  for (const key of possibleKeys) {
-    if (row[key] !== undefined && row[key] !== null && String(row[key]).toString().trim() !== '') {
-      return row[key];
+// Normalize object keys: lowercase, remove spaces, underscores, dots and non-alphanumerics
+function normalizeRowKeys(row) {
+  const normalized = {};
+  Object.keys(row || {}).forEach((key) => {
+    const normKey = String(key)
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/[._-]+/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    normalized[normKey] = row[key];
+  });
+  return normalized;
+}
+
+// Get first non-empty value for a set of possible normalized header names
+function getCellNormalized(rowNorm, possibleNormKeys) {
+  for (const key of possibleNormKeys) {
+    const value = rowNorm[key];
+    if (value !== undefined && value !== null && String(value).toString().trim() !== '') {
+      return value;
     }
   }
   return '';
@@ -89,16 +104,17 @@ exports.addSchool = async (req, res) => {
     // Parse XLS
     const workbook = XLSX.readFile(xlsFile.path);
     const sheetName = workbook.SheetNames[0];
-    const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
 
     if (!data || data.length === 0) {
       return res.status(400).json({ message: 'XLS file appears to be empty' });
     }
 
     // School-level fields from the first row
-    const firstRow = data[0];
-    const schoolName = getCell(firstRow, ['School', 'school', 'School Name', 'SchoolName']) || 'Unnamed School';
-    const affNo = getCell(firstRow, ['Affno', 'Aff No', 'Aff No.', 'AffNo', 'Affiliation No', 'AffiliationNo']);
+    const normalizedData = data.map(normalizeRowKeys);
+    const firstRow = normalizedData[0] || {};
+    const schoolName = getCellNormalized(firstRow, ['school', 'schoolname']) || 'Unnamed School';
+    const affNo = getCellNormalized(firstRow, ['affno', 'affiliationno']);
 
     // Prepare school data
     const schoolData = {
@@ -134,17 +150,42 @@ exports.addSchool = async (req, res) => {
     }
 
     // Add students with robust header mapping
-    const students = await Student.insertMany(
-      data.map(row => ({
-        name: getCell(row, ['Name', 'Student Name', 'Studentname', 'FullName', 'name']) || undefined,
-        rollNumber: getCell(row, ['RollNumber', 'Roll Number', 'rollNumber', 'roll no', 'RollNo']),
-        registrationNo: getCell(row, ['RegistrationNo', 'Register No', 'RegisterNo', 'Reg No', 'RegNo', 'Registration No']),
-        class: getCell(row, ['Class', 'Std', 'Standard', 'class']),
-        dob: getCell(row, ['Dob', 'D.O.B', 'Date of Birth', 'DOB', 'dob']),
-        ageGroup: getCell(row, ['Agegroup', 'Age Group', 'AgeGroup', 'agegroup']),
-        school: school._id
-      }))
-    );
+    const studentsPayload = normalizedData
+      .map((row) => {
+        const name = getCellNormalized(row, ['name', 'studentname', 'student_fullname', 'fullname']);
+        const rollNumber = getCellNormalized(row, ['rollnumber', 'rollno', 'roll', 'rollnumberno']);
+        const registrationNo = getCellNormalized(row, [
+          'registrationno',
+          'regno',
+          'regnumber',
+          'registerno',
+          'admissionno',
+          'admissionnumber'
+        ]);
+        const klass = getCellNormalized(row, ['class', 'std', 'standard', 'grade']);
+        const dob = getCellNormalized(row, ['dob', 'dateofbirth', 'dateofbirthdob']);
+        const ageGroup = getCellNormalized(row, ['agegroup', 'age', 'agegrou']);
+
+        const hasAny = [name, rollNumber, registrationNo, klass, dob, ageGroup]
+          .some((v) => String(v).trim() !== '');
+
+        if (!hasAny) return null;
+
+        return {
+          name: name || undefined,
+          rollNumber: String(rollNumber || '').toString(),
+          registrationNo: String(registrationNo || '').toString(),
+          class: String(klass || '').toString(),
+          dob: String(dob || '').toString(),
+          ageGroup: String(ageGroup || '').toString(),
+          school: school._id
+        };
+      })
+      .filter(Boolean);
+
+    const students = studentsPayload.length > 0
+      ? await Student.insertMany(studentsPayload)
+      : [];
 
     // Link students to school
     school.students = students.map(s => s._id);
