@@ -141,4 +141,62 @@ exports.addSchool = async (req, res) => {
     const students = await Student.insertMany(
       data.map(row => ({
         name: getCell(row, ['Name', 'Student Name', 'Studentname', 'FullName', 'name']) || undefined,
-        rollNumber: getCell(row, ['RollNum]()
+        rollNumber: getCell(row, ['RollNumber', 'Roll Number', 'rollNumber', 'roll no', 'RollNo']),
+        registrationNo: getCell(row, ['RegistrationNo', 'Register No', 'RegisterNo', 'Reg No', 'RegNo', 'Registration No']),
+        class: getCell(row, ['Class', 'Std', 'Standard', 'class']),
+        dob: getCell(row, ['Dob', 'D.O.B', 'Date of Birth', 'DOB', 'dob']),
+        ageGroup: getCell(row, ['Agegroup', 'Age Group', 'AgeGroup', 'agegroup']),
+        school: school._id
+      }))
+    );
+
+    school.students = students.map(s => s._id);
+    await school.save();
+
+    // Cleanup
+    if (xlsFile && fs.existsSync(xlsFile.path)) fs.unlinkSync(xlsFile.path);
+    if (groupPhoto && fs.existsSync(groupPhoto.path)) fs.unlinkSync(groupPhoto.path);
+
+    res.json({
+      message: 'School and students added successfully',
+      school: {
+        _id: school._id,
+        name: school.name,
+        affNo: school.affNo,
+        groupPhoto: school.groupPhoto,
+        studentsCount: students.length
+      }
+    });
+  } catch (err) {
+    console.error('Error in addSchool:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Keep other functions same except ensure `groupPhoto` is now a URL in all responses
+exports.getSchools = async (req, res) => {
+  try {
+    const schools = await School.find().select('name affNo _id groupPhoto');
+    res.json(schools);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getSchoolById = async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    const school = await School.findById(schoolId);
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+    res.json({
+      _id: school._id,
+      name: school.name,
+      affNo: school.affNo,
+      groupPhoto: school.groupPhoto // Already a Cloudinary URL
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
