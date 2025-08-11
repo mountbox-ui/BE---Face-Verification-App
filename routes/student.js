@@ -4,13 +4,13 @@ const auth = require('../middleware/auth');
 const Student = require('../models/Student');
 
 // Get student by ID
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', async (req, res) => {
     const student = await Student.findById(req.params.id);
     res.json(student);
 });
 
 // Manual verification endpoint
-router.post('/:id/manual-verify', auth, async (req, res) => {
+router.post('/:id/manual-verify', async (req, res) => {
     try {
         const { id } = req.params;
         const student = await Student.findById(id);
@@ -46,7 +46,7 @@ router.post('/:id/manual-verify', auth, async (req, res) => {
 });
 
 // Reset verification endpoint
-router.post('/:id/reset-verification', auth, async (req, res) => {
+router.post('/:id/reset-verification', async (req, res) => {
     try {
         const { id } = req.params;
         const student = await Student.findById(id);

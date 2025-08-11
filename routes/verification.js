@@ -51,7 +51,7 @@ function euclideanDistance(desc1, desc2) {
   return Math.sqrt(desc1.reduce((sum, val, i) => sum + Math.pow(val - desc2[i], 2), 0));
 }
 
-router.post('/:studentId', auth, async (req, res) => {
+router.post('/:studentId', async (req, res) => {
   try {
     const { studentId } = req.params;
     const { capturedImage, schoolId } = req.body;

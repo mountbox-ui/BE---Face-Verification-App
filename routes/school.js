@@ -18,10 +18,10 @@ router.post(
 );
 
 // Get all schools
-router.get('/', auth, schoolController.getSchools);
+router.get('/', schoolController.getSchools);
 
 // Get students by school
-router.get('/:schoolId/students', auth, schoolController.getStudentsBySchool);
+router.get('/:schoolId/students', schoolController.getStudentsBySchool);
 
 // Delete school and all its students
 router.delete('/:schoolId', auth, async (req, res) => {
@@ -42,7 +42,7 @@ router.delete('/:schoolId', auth, async (req, res) => {
 });
 
 // Download verified profiles as XLSX
-router.get('/:schoolId/download', auth, async (req, res) => {
+router.get('/:schoolId/download', async (req, res) => {
   try {
     const { schoolId } = req.params;
     
@@ -81,7 +81,7 @@ router.get('/:schoolId/download', auth, async (req, res) => {
 });
 
 // Download verified profiles from all schools
-router.get('/download/all-verified', auth, async (req, res) => {
+router.get('/download/all-verified', async (req, res) => {
   try {
     // Get all schools and their verified students
     const schools = await School.find();
@@ -132,7 +132,7 @@ router.get('/download/all-verified', auth, async (req, res) => {
 });
 
 // Download only verified profiles for current school
-router.get('/:schoolId/download/verified-only', auth, async (req, res) => {
+router.get('/:schoolId/download/verified-only', async (req, res) => {
   try {
     const { schoolId } = req.params;
     
@@ -179,7 +179,7 @@ router.get('/:schoolId/download/verified-only', auth, async (req, res) => {
 });
 
 // Get school details including group photo
-router.get('/:schoolId', auth, async (req, res) => {
+router.get('/:schoolId', async (req, res) => {
   try {
     const { schoolId } = req.params;
     console.log('Fetching school with ID:', schoolId);
@@ -214,6 +214,6 @@ router.get('/:schoolId', auth, async (req, res) => {
 });
 
 // Regenerate group descriptors for a school
-router.post('/:schoolId/regenerate-descriptors', auth, schoolController.regenerateGroupDescriptors);
+router.post('/:schoolId/regenerate-descriptors', schoolController.regenerateGroupDescriptors);
 
 module.exports = router;
