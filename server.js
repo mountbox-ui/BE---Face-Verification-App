@@ -24,9 +24,18 @@ const allowedOrigins = [
 // }));
 
 app.use(cors({
-  origin: 'https://fe-face-verification-app.onrender.com',
+  // origin: 'https://fe-face-verification-app.onrender.com',
+  origin: 'http://localhost:3000',
   credentials: true
 }))
+
+// server.js
+const cors = require('cors');
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'https://your-frontend-domain.com',
+  credentials: true
+}));
+
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -42,6 +51,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/school', schoolRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/verification', verificationRoutes);
+
+const uploadRoutes = require('./routes/upload');
+app.use('/api', uploadRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 
