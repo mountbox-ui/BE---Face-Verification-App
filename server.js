@@ -74,15 +74,11 @@ const schoolRoutes = require('./routes/school');
 const studentRoutes = require('./routes/student');
 const verificationRoutes = require('./routes/verification');
 
-// Prefer /api/* but also mount non-prefixed for resiliency
+// Mount only under /api to avoid CORS/UI confusion
 app.use('/api/auth', authRoutes);
 app.use('/api/school', schoolRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/verification', verificationRoutes);
-app.use('/auth', authRoutes);
-app.use('/school', schoolRoutes);
-app.use('/student', studentRoutes);
-app.use('/verification', verificationRoutes);
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
