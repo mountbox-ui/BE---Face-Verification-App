@@ -4,11 +4,13 @@ const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
 
+
 const app = express();
 const allowedOrigins = [
   "https://fe-face-verification-app.onrender.com/", // your frontend in production
   "http://localhost:3000/" // for local development
 ];
+
 
 // app.use(cors({
 //   origin: function (origin, callback) {
