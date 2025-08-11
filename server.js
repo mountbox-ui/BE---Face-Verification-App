@@ -3,10 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
-const cloudinary = require('./config/cloudinary');
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
 const allowedOrigins = [
   "https://fe-face-verification-app.onrender.com/", // your frontend in production
   "http://localhost:3000/" // for local development
@@ -55,19 +53,6 @@ app.use('/api/verification', verificationRoutes);
 
 const uploadRoutes = require('./routes/upload');
 app.use('/api', uploadRoutes);
-
-app.post('/api/upload', upload.single('image'), async (req, res) => {
-  try {
-    const path = req.file.path;
-    const result = await cloudinary.uploader.upload(path, {
-      folder: 'profile_pictures'
-    });
-    fs.unlinkSync(path); // Remove file after upload
-    res.json({ url: result.secure_url });
-  } catch (err) {
-    res.status(500).json({ error: 'Upload failed', details: err.message });
-  }
-});
 
 
 const PORT = process.env.PORT || 5000;
