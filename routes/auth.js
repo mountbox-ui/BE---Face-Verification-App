@@ -10,8 +10,12 @@ router.post('/login', async (req, res) => {
     // console.log(user);
     console.log(username, password);
     if (username === 'testuser' && password === 'password123') {
-        // const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        res.json({ message: 'Login successful'});
+        const token = jwt.sign(
+          { username },
+          process.env.JWT_SECRET || 'dev_secret',
+          { expiresIn: '1d' }
+        );
+        res.json({ token });
     }else {
         return res.status(400).json({ message: 'Invalid credentials' });
     }

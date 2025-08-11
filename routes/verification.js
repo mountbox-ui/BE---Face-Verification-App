@@ -19,19 +19,22 @@
 // For real face verification on local server
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth'); 
+const auth = require('../middleware/auth');
 const Student = require('../models/Student');
-  const School = require('../models/School');
+const School = require('../models/School');
+require('@tensorflow/tfjs-node');
 const faceapi = require('face-api.js');
 const canvas = require('canvas');
 const { Canvas, Image, ImageData } = canvas;
+const path = require('path');
+const MODELS_PATH = path.join(__dirname, '../models/face_models');
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
 async function extractDescriptorFromBase64(base64) {
   // Load models
-  await faceapi.nets.tinyFaceDetector.loadFromDisk('./models/face_models');
-  await faceapi.nets.faceLandmark68Net.loadFromDisk('./models/face_models');
-  await faceapi.nets.faceRecognitionNet.loadFromDisk('./models/face_models');
+  await faceapi.nets.tinyFaceDetector.loadFromDisk(MODELS_PATH);
+  await faceapi.nets.faceLandmark68Net.loadFromDisk(MODELS_PATH);
+  await faceapi.nets.faceRecognitionNet.loadFromDisk(MODELS_PATH);
 
   // Convert base64 to buffer and load as image
   const buffer = Buffer.from(base64.replace(/^data:image\/\w+;base64,/, ""), 'base64');

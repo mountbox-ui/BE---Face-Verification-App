@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Face-api.js setup
+require('@tensorflow/tfjs-node');
 const faceapi = require('face-api.js');
 const canvas = require('canvas');
 const { Canvas, Image, ImageData } = canvas;

@@ -3,12 +3,14 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const allowedOrigins = [
-  "https://fe-face-verification-app.onrender.com/", // your frontend in production
-  "http://localhost:3000/" // for local development
-];
+  process.env.CLIENT_URL,
+  'https://fe-face-verification-app.onrender.com',
+  'http://localhost:3000'
+].filter(Boolean);
 
 // app.use(cors({
 //   origin: function (origin, callback) {
@@ -31,13 +33,22 @@ const allowedOrigins = [
 
 // server.js
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'https://fe-face-verification-app.onrender.com',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
   credentials: true
 }));
 
 
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Ensure uploads directory exists for disk storage
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 
 // Import routes
@@ -51,8 +62,7 @@ app.use('/api/school', schoolRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/verification', verificationRoutes);
 
-const uploadRoutes = require('./routes/upload');
-app.use('/api', uploadRoutes);
+// Removed non-existent upload route
 
 
 const PORT = process.env.PORT || 5000;
