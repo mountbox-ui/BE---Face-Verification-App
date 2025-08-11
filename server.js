@@ -5,6 +5,8 @@ require('dotenv').config();
 const path = require('path');
 
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 const app = express();
 const allowedOrigins = [
   "https://fe-face-verification-app.onrender.com/", // your frontend in production
