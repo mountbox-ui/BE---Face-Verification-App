@@ -23,11 +23,11 @@ const allowedOrigins = [
 //   credentials: true
 // }));
 
-app.use(cors({
-  // origin: 'https://fe-face-verification-app.onrender.com',
-  origin: 'http://localhost:3000',
-  credentials: true
-}))
+// app.use(cors({
+//   // origin: 'https://fe-face-verification-app.onrender.com',
+//   origin: 'http://localhost:3000',
+//   credentials: true
+// }))
 
 // server.js
 app.use(cors({
