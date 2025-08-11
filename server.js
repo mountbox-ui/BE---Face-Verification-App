@@ -4,6 +4,7 @@ const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
+const User = require('./models/User');
 
 const app = express();
 const allowedOrigins = [
@@ -69,5 +70,26 @@ const PORT = process.env.PORT || 5000;
 
 
 mongoose.connect(process.env.MONGO_URL,)
-    .then(() => app.listen(PORT, () => console.log(`Server running on port ${PORT}`)))
+    .then(async () => {
+      // Seed default admin if configured and missing
+      try {
+        const adminUsername = process.env.ADMIN_USERNAME;
+        const adminPassword = process.env.ADMIN_PASSWORD;
+        if (adminUsername && adminPassword) {
+          const existing = await User.findOne({ username: adminUsername });
+          if (!existing) {
+            const admin = new User({ username: adminUsername, password: adminPassword });
+            await admin.save();
+            console.log('Default admin user created');
+          } else {
+            console.log('Default admin already exists');
+          }
+        } else {
+          console.log('ADMIN_USERNAME/ADMIN_PASSWORD not set; skipping admin seed');
+        }
+      } catch (seedErr) {
+        console.error('Error seeding admin user:', seedErr);
+      }
+      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    })
     .catch((err) => console.log(err));
