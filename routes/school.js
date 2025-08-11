@@ -192,10 +192,17 @@ router.get('/:schoolId', auth, async (req, res) => {
       return res.status(404).json({ message: 'School not found' });
     }
     
+    // Ensure groupPhoto is a consistent relative URL under /uploads
+    const groupPhotoRelative = school.groupPhoto && school.groupPhoto.startsWith('uploads')
+      ? school.groupPhoto
+      : school.groupPhoto
+        ? `uploads/${school.groupPhoto.replace(/^.*uploads[\\\/]?/, '')}`
+        : null;
+
     res.json({
       _id: school._id,
       name: school.name,
-      groupPhoto: school.groupPhoto,
+      groupPhoto: groupPhotoRelative,
       hasGroupDescriptors: school.groupDescriptors && school.groupDescriptors.length > 0,
       descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0
     });
