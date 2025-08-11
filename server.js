@@ -43,6 +43,12 @@ app.use(cors({
 }));
 
 
+// Basic request logger to help debug 404s in production
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.use(express.json());
 // Ensure uploads directory exists for disk storage
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -58,38 +64,50 @@ const schoolRoutes = require('./routes/school');
 const studentRoutes = require('./routes/student');
 const verificationRoutes = require('./routes/verification');
 
+// Prefer /api/* but also mount non-prefixed for resiliency
 app.use('/api/auth', authRoutes);
 app.use('/api/school', schoolRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/verification', verificationRoutes);
+app.use('/auth', authRoutes);
+app.use('/school', schoolRoutes);
+app.use('/student', studentRoutes);
+app.use('/verification', verificationRoutes);
+
+app.get('/health', (req, res) => res.json({ ok: true }));
 
 // Removed non-existent upload route
 
 
 const PORT = process.env.PORT || 5000;
 
+// Start server immediately; connect to DB in background to avoid 404 due to startup failures
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-mongoose.connect(process.env.MONGO_URL,)
-    .then(async () => {
-      // Seed default admin if configured and missing
-      try {
-        const adminUsername = process.env.ADMIN_USERNAME;
-        const adminPassword = process.env.ADMIN_PASSWORD;
-        if (adminUsername && adminPassword) {
-          const existing = await User.findOne({ username: adminUsername });
-          if (!existing) {
-            const admin = new User({ username: adminUsername, password: adminPassword });
-            await admin.save();
-            console.log('Default admin user created');
-          } else {
-            console.log('Default admin already exists');
-          }
+mongoose
+  .connect(process.env.MONGO_URL)
+  .then(async () => {
+    console.log('Connected to MongoDB');
+    try {
+      const adminUsername = process.env.ADMIN_USERNAME;
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      if (adminUsername && adminPassword) {
+        const existing = await User.findOne({ username: adminUsername });
+        if (!existing) {
+          const admin = new User({ username: adminUsername, password: adminPassword });
+          await admin.save();
+          console.log('Default admin user created');
         } else {
-          console.log('ADMIN_USERNAME/ADMIN_PASSWORD not set; skipping admin seed');
+          console.log('Default admin already exists');
         }
-      } catch (seedErr) {
-        console.error('Error seeding admin user:', seedErr);
       }
-      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    })
-    .catch((err) => console.log(err));
+    } catch (seedErr) {
+      console.error('Error seeding admin user:', seedErr);
+    }
+  })
+  .catch((err) => console.error('MongoDB connection error:', err.message));
+
+// 404 handler to make errors explicit
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found', path: req.originalUrl });
+});
