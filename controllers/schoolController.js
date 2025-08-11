@@ -109,9 +109,10 @@ exports.addSchool = async (req, res) => {
 
     // Save group photo path if provided
     if (groupPhoto) {
-      // Normalize path for static serving: ensure it is relative to uploads/
-      // Multer saves like uploads/<filename>; store relative path without leading ./
-      const relativePath = groupPhoto.path.replace(/^[.\\/]+/, '');
+      // Normalize path for static serving: ensure it is relative to uploads/ and uses forward slashes
+      const relativePath = groupPhoto.path
+        .replace(/^[.\\/]+/, '')
+        .replace(/\\/g, '/');
       schoolData.groupPhoto = relativePath;
     }
 

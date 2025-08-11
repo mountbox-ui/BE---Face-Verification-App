@@ -42,6 +42,9 @@ app.use(cors({
   credentials: true
 }));
 
+// Ensure preflight requests succeed for all routes
+app.options('*', cors());
+
 
 // Basic request logger to help debug 404s in production
 app.use((req, res, next) => {

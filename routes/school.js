@@ -9,13 +9,12 @@ const XLSX = require('xlsx');
 
 // Add school (XLS + group photo)
 router.post(
-    '/add',
-    auth,
-    upload.fields([
-        { name: 'xlsFile', maxCount: 1 },
-        { name: 'groupPhoto', maxCount: 1 }
-    ]),
-    schoolController.addSchool
+  '/add',
+  upload.fields([
+    { name: 'xlsFile', maxCount: 1 },
+    { name: 'groupPhoto', maxCount: 1 }
+  ]),
+  schoolController.addSchool
 );
 
 // Get all schools
@@ -197,13 +196,14 @@ router.get('/:schoolId', auth, async (req, res) => {
     const groupPhotoRelative = school.groupPhoto && school.groupPhoto.startsWith(uploadsRoot)
       ? school.groupPhoto
       : school.groupPhoto
-        ? `${uploadsRoot}/${school.groupPhoto.replace(/^.*uploads[\\\/]?/, '')}`
+        ? `${uploadsRoot}/${school.groupPhoto.replace(/^[.\\/]+/, '').replace(/^.*uploads[\\\/]?/, '')}`
         : null;
 
     res.json({
       _id: school._id,
       name: school.name,
       groupPhoto: groupPhotoRelative,
+      groupPhotoUrl: groupPhotoRelative ? `${req.protocol}://${req.get('host')}/${groupPhotoRelative}` : null,
       hasGroupDescriptors: school.groupDescriptors && school.groupDescriptors.length > 0,
       descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0
     });
