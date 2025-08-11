@@ -32,7 +32,7 @@ app.use(cors({
 // server.js
 const cors = require('cors');
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'https://your-frontend-domain.com',
+  origin: process.env.CLIENT_URL || 'https://fe-face-verification-app.onrender.com',
   credentials: true
 }));
 
