@@ -124,9 +124,9 @@ exports.addSchool = async (req, res) => {
     // Extract and save group descriptors if group photo exists
     if (groupPhoto) {
       try {
-        const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
-        school.groupDescriptors = descriptors;
-        await school.save();
+        // const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
+        // school.groupDescriptors = descriptors;
+        // await school.save();
       } catch (err) {
         console.error('Error extracting group descriptors:', err);
       }
