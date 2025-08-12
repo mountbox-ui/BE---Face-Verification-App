@@ -79,6 +79,7 @@ function getCell(row, possibleKeys) {
 }
 
 exports.addSchool = async (req, res) => {
+  console.log('Reached schoolController.addSchool. Files:', req.files, 'Body:', req.body);
   try {
     const xlsFile = req.files.xlsFile ? req.files.xlsFile[0] : null;
     const groupPhoto = req.files.groupPhoto ? req.files.groupPhoto[0] : null;

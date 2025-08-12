@@ -26,6 +26,7 @@ router.post(
     { name: 'xlsFile', maxCount: 1 },
     { name: 'groupPhoto', maxCount: 1 }
   ]),
+  (req, res, next) => { console.log('Reached /api/school/add route. Files:', req.files, 'Body:', req.body); next(); },
   schoolController.addSchool
 );
 
