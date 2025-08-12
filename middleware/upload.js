@@ -12,12 +12,23 @@ cloudinary.config({
 // Set up Cloudinary storage
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: 'uploads', // Folder name in Cloudinary
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'], // Allowed file types
-    public_id: (req, file) => {
-      return Date.now() + '-' + file.originalname.split('.')[0];
+  params: async (req, file) => {
+    let folder = 'uploads';
+    let allowed_formats = ['jpg', 'jpeg', 'png', 'webp'];
+    let resource_type = 'image';
+
+    if (file.fieldname === 'xlsFile') {
+      folder = 'excel_uploads'; // Separate folder for Excel files
+      allowed_formats = ['xlsx', 'xls']; // Allow Excel formats
+      resource_type = 'raw'; // Treat as raw file
     }
+    
+    return {
+      folder: folder,
+      allowed_formats: allowed_formats,
+      resource_type: resource_type,
+      public_id: Date.now() + '-' + file.originalname.split('.')[0]
+    };
   }
 });
 
