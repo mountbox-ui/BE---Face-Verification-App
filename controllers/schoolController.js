@@ -35,45 +35,41 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
 
     await loadFaceApiModels();
     
-    // Normalize the image via sharp: rotate if needed, resize to a reasonable width, ensure alpha channel, convert to PNG
-    const processedBuffer = await sharp(imageBuffer)
+    // Decode and normalize entirely with sharp to avoid node-canvas decoder issues
+    const { data: rgba, info } = await sharp(imageBuffer)
       .rotate()
       .resize({ width: 960, withoutEnlargement: true })
-      .toFormat('png')
       .ensureAlpha()
-      .toBuffer();
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
-    // Use canvas.loadImage directly with buffer to get an Image object
-    const img = await canvas.loadImage(processedBuffer);
-    
-    // Explicitly create a canvas and draw the image onto it
-    const c = new canvas.Canvas(img.width, img.height);
+    if (!info || !info.width || !info.height) {
+      throw new Error('Failed to decode image dimensions');
+    }
+
+    const c = new canvas.Canvas(info.width, info.height);
     const ctx = c.getContext('2d');
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-    
-    // First detection attempt using the canvas
-    const detections = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({
-      inputSize: 320,
-      scoreThreshold: 0.3
-    }))
-    .withFaceLandmarks()
-    .withFaceDescriptors();
-    
-    if (detections.length === 0) {
-      const detections2 = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({
-        inputSize: 256,
-        scoreThreshold: 0.1
-      }))
+    const imageData = new ImageData(new Uint8ClampedArray(rgba), info.width, info.height);
+    ctx.putImageData(imageData, 0, 0);
+
+    // Detection with TinyFaceDetector
+    const detections = await faceapi
+      .detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
       .withFaceLandmarks()
       .withFaceDescriptors();
-      
+
+    if (detections.length === 0) {
+      const detections2 = await faceapi
+        .detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 }))
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
       if (detections2.length === 0) {
         throw new Error('No faces detected in the group photo. Please ensure the photo contains clear, visible faces with good lighting and minimal obstructions.');
       }
-      
       return detections2.map(det => Array.from(det.descriptor));
     }
-    
+
     return detections.map(det => Array.from(det.descriptor));
   } catch (error) {
     console.error('Error in extractGroupDescriptors:', error);
