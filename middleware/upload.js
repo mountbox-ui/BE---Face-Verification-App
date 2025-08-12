@@ -9,60 +9,26 @@ const ensureDirExists = (dir) => {
   }
 };
 
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const dest = path.join(__dirname, '../uploads'); // Base uploads directory
-        ensureDirExists(dest); // Ensure base uploads directory exists
-        cb(null, dest);
-    },
-    filename: function (req, file, cb) {
-        // Use original filename with a timestamp to prevent overwrites
-        cb(null, file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({ storage: storage });
-
-// Export the combined fields middleware
-exports.fields = (fieldsArray) => {
-  return upload.fields(fieldsArray);
-};
-
-// For single file uploads (if needed elsewhere)
-exports.single = (fieldName) => {
-  return upload.single(fieldName);
-};
-
-// Export specific upload types for clarity in routes
-exports.imageUpload = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const dest = path.join(__dirname, '../uploads/images');
-      ensureDirExists(dest);
-      cb(null, dest);
-    },
-    filename: function (req, file, cb) { cb(null, Date.now() + '-' + file.originalname); }
-  }),
-  fileFilter: (req, file, cb) => {
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
+const commonStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    let dest;
+    if (file.fieldname === 'xlsFile') {
+      dest = path.join(__dirname, '../uploads/excel');
+    } else if (file.fieldname === 'groupPhoto') {
+      dest = path.join(__dirname, '../uploads/images');
     } else {
-      cb(new Error('Only image files (jpg, jpeg, png, webp) are allowed!'), false);
+      dest = path.join(__dirname, '../uploads'); // Fallback for other fields
     }
+    ensureDirExists(dest);
+    cb(null, dest);
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
   }
 });
 
-exports.excelUpload = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const dest = path.join(__dirname, '../uploads/excel');
-      ensureDirExists(dest);
-      cb(null, dest);
-    },
-    filename: function (req, file, cb) { cb(null, Date.now() + '-' + file.originalname); }
-  }),
-  fileFilter: (req, file, cb) => {
+const commonFileFilter = (req, file, cb) => {
+  if (file.fieldname === 'xlsFile') {
     const allowedMimes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel'
@@ -70,7 +36,24 @@ exports.excelUpload = multer({
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel files (.xlsx, .xls) are allowed!'), false);
+      cb(new Error('Only Excel files (.xlsx, .xls) are allowed for xlsFile!'), false);
     }
+  } else if (file.fieldname === 'groupPhoto') {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (jpg, jpeg, png, webp) are allowed for groupPhoto!'), false);
+    }
+  } else {
+    // For any other unexpected fields
+    cb(new Error('Unexpected field type!'), false);
   }
+};
+
+const upload = multer({
+  storage: commonStorage,
+  fileFilter: commonFileFilter
 });
+
+module.exports = upload;
