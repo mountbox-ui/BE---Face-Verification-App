@@ -6,6 +6,8 @@ const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const axios = require('axios');
+const cloudinary = require('../cloudinary');
 
 // Face-api.js setup
 const faceapi = require('face-api.js');
@@ -117,10 +119,28 @@ exports.addSchool = async (req, res) => {
       students: []
     };
 
-    // Store group photo as Base64 if provided
+    // Upload group photo to Cloudinary if provided
     if (groupPhoto) {
-      // Store as Data URL (Base64 string)
-      schoolData.groupPhoto = `data:${groupPhoto.mimetype};base64,${groupPhoto.buffer.toString('base64')}`;
+      const uploadResult = await cloudinary.uploader.upload_stream({
+        folder: 'group-photos',
+        resource_type: 'image',
+        format: 'jpg'
+      }, async (error, result) => {
+        if (error) throw error;
+        return result;
+      });
+    }
+
+    // Instead of stream, use upload with buffer (promisified)
+    if (groupPhoto) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({ folder: 'group-photos', resource_type: 'image' }, (err, res) => {
+          if (err) return reject(err);
+          resolve(res);
+        });
+        stream.end(groupPhoto.buffer);
+      });
+      schoolData.groupPhoto = result.secure_url;
     }
 
     // Create school
@@ -157,14 +177,17 @@ exports.addSchool = async (req, res) => {
     });
 
     // Extract and save group descriptors in background to keep submit fast
-    if (groupPhoto) {
+    if (school.groupPhoto) {
       await School.findByIdAndUpdate(school._id, {
         groupDescriptorsStatus: 'processing',
         groupDescriptorsError: null
       });
       setImmediate(async () => {
         try {
-          const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
+          // fetch image bytes from URL
+          const resp = await axios.get(school.groupPhoto, { responseType: 'arraybuffer' });
+          const buf = Buffer.from(resp.data);
+          const descriptors = await extractGroupDescriptors(buf, 'image/jpeg');
           await School.findByIdAndUpdate(school._id, { 
             groupDescriptors: descriptors,
             groupDescriptorsStatus: 'ready',
@@ -182,11 +205,6 @@ exports.addSchool = async (req, res) => {
         }
       });
     }
-
-    // No file cleanup needed as using memory storage
-    // if (xlsFile && fs.existsSync(xlsFile.path)) {
-    //   fs.unlinkSync(xlsFile.path);
-    // }
 
   } catch (err) {
     console.error('Error in addSchool:', err);
@@ -237,13 +255,9 @@ exports.getSchoolById = async (req, res) => {
 exports.deleteSchool = async (req, res) => {
   try {
     const { schoolId } = req.params;
-    // Get school info for cleanup (no file deletion as using Base64)
     const school = await School.findById(schoolId);
-    // No need to delete group photo file from disk as it's stored as Base64 in DB
 
-    // Delete all students associated with this school
     await Student.deleteMany({ school: schoolId });
-    // Delete the school
     await School.findByIdAndDelete(schoolId);
     res.json({ message: 'School and all students deleted successfully' });
   } catch (err) {
@@ -264,20 +278,7 @@ exports.regenerateGroupDescriptors = async (req, res) => {
     if (!school.groupPhoto) {
       return res.status(400).json({ message: 'No group photo found for this school. Please upload a group photo first.' });
     }
-    
-    // Extract Base64 data and MIME type from the stored Data URL
-    if (!school.groupPhoto.startsWith('data:')) {
-      return res.status(400).json({ message: 'Stored group photo is not in expected Base64 format.' });
-    }
-    const [mimePart, base64Data] = school.groupPhoto.split(',');
-    const imageMimeType = mimePart.split(':')[1].split(';')[0];
-    const imageBuffer = Buffer.from(base64Data, 'base64');
-    
-    if (!imageBuffer || imageBuffer.length === 0) {
-      return res.status(400).json({ message: 'Extracted group photo data is empty or invalid.' });
-    }
 
-    // Mark as processing and return immediately
     await School.findByIdAndUpdate(schoolId, {
       groupDescriptorsStatus: 'processing',
       groupDescriptorsError: null
@@ -285,7 +286,17 @@ exports.regenerateGroupDescriptors = async (req, res) => {
 
     setImmediate(async () => {
       try {
-        const descriptors = await extractGroupDescriptors(imageBuffer, imageMimeType);
+        let imageBuffer;
+        let mime = 'image/jpeg';
+        if (school.groupPhoto.startsWith('http')) {
+          const resp = await axios.get(school.groupPhoto, { responseType: 'arraybuffer' });
+          imageBuffer = Buffer.from(resp.data);
+        } else if (school.groupPhoto.startsWith('data:')) {
+          const [mimePart, base64Data] = school.groupPhoto.split(',');
+          mime = mimePart.split(':')[1].split(';')[0];
+          imageBuffer = Buffer.from(base64Data, 'base64');
+        }
+        const descriptors = await extractGroupDescriptors(imageBuffer, mime);
         await School.findByIdAndUpdate(schoolId, {
           groupDescriptors: descriptors,
           groupDescriptorsStatus: 'ready',
