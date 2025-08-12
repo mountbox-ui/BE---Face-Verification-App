@@ -29,26 +29,17 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
 
     await loadFaceApiModels();
     
-    // Create a new canvas Image and load the buffer into it
-    const img = new canvas.Image();
-    img.src = imageBuffer; // Load buffer into img.src
+    // Use canvas.loadImage directly with buffer to get an Image object
+    const img = await canvas.loadImage(imageBuffer);
+    console.log('Image loaded by canvas.loadImage, dimensions:', img.width, 'x', img.height);
     
-    // Ensure image is loaded (this is usually async)
-    await new Promise((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = (err) => reject(new Error('Failed to load image into canvas.Image: ' + err));
-    });
-    
-    console.log('Canvas.Image loaded, dimensions:', img.width, 'x', img.height);
-
-    // Explicitly create a canvas and get ImageData from the loaded image
+    // Explicitly create a canvas and draw the image onto it
     const c = new canvas.Canvas(img.width, img.height);
     const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0, img.width, img.height);
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
-    console.log('Extracted ImageData dimensions:', imageData.width, 'x', imageData.height);
     
-    const detections = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
+    // Pass the canvas directly to face-api.js
+    const detections = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({
       inputSize: 512,
       scoreThreshold: 0.3
     }))
