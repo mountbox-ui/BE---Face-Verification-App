@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Student = require('../models/Student');
 const School = require('../models/School');
+const XLSX = require('xlsx');
 
 // Helper function to validate ObjectId
 const isValidObjectId = (id) => {
@@ -24,6 +25,8 @@ const formatStudentResponse = (student) => {
     manuallyVerified: student.manuallyVerified,
     manualVerificationDate: student.manualVerificationDate,
     faceDescriptors: student.faceDescriptors ? student.faceDescriptors.length : 0,
+    day1Photo: student.day1Photo,
+    dayVerification: student.dayVerification,
     createdAt: student.createdAt,
     updatedAt: student.updatedAt
   };
@@ -39,7 +42,8 @@ router.get('/', auth, async (req, res) => {
       page = 1, 
       limit = 50,
       sortBy = 'name',
-      sortOrder = 'asc'
+      sortOrder = 'asc',
+      day
     } = req.query;
 
     // Build query
@@ -90,8 +94,20 @@ router.get('/', auth, async (req, res) => {
 
     const totalPages = Math.ceil(totalCount / limitNum);
 
+    // If day filter is specified, project day-specific view
+    const projected = students.map((s) => {
+      const obj = formatStudentResponse(s);
+      if (day && /^day[1-6]$/.test(day)) {
+        obj.day = day;
+        obj.dayResult = s.dayVerification?.[day]?.result || 'pending';
+        obj.dayConfidence = s.dayVerification?.[day]?.confidence || null;
+        obj.dayDate = s.dayVerification?.[day]?.date || null;
+      }
+      return obj;
+    });
+
     res.json({
-      students: students.map(formatStudentResponse),
+      students: projected,
       pagination: {
         currentPage: pageNum,
         totalPages,
@@ -104,7 +120,8 @@ router.get('/', auth, async (req, res) => {
         verificationStatus,
         search,
         sortBy,
-        sortOrder
+        sortOrder,
+        day
       }
     });
 
@@ -117,34 +134,114 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Get student by ID
-router.get('/:id', auth, async (req, res) => {
+// Day result update (when verifying on Day N)
+router.post('/:id/day/:dayNumber/result', auth, async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id, dayNumber } = req.params;
+    const { result, confidence, photo } = req.body; // photo optional, only stored on day1
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid student ID format' });
     }
-
-    const student = await Student.findById(id).populate('school', 'name groupPhoto');
-    
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
+    const dayKey = `day${parseInt(dayNumber, 10)}`;
+    if (!/^day[1-6]$/.test(dayKey)) {
+      return res.status(400).json({ message: 'dayNumber must be 1-6' });
     }
 
-    res.json({
-      student: formatStudentResponse(student),
-      school: student.school
-    });
+    const student = await Student.findById(id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
+    // Save day 1 photo if provided
+    if (dayKey === 'day1' && photo) {
+      student.day1Photo = photo;
+    }
+
+    student.dayVerification[dayKey] = {
+      result: result || 'pending',
+      confidence: confidence || null,
+      date: new Date()
+    };
+
+    await student.save();
+    res.json({ message: 'Day result updated', student: formatStudentResponse(student) });
   } catch (err) {
-    console.error('Get student error:', err);
-    res.status(500).json({ 
-      message: 'Failed to fetch student',
-      error: err.message 
-    });
+    console.error('Update day result error:', err);
+    res.status(500).json({ message: 'Failed to update day result', error: err.message });
   }
 });
+
+// Download day-specific details
+router.get('/download/day/:dayNumber', auth, async (req, res) => {
+  try {
+    const { dayNumber } = req.params;
+    const { schoolId } = req.query;
+
+    const dayKey = `day${parseInt(dayNumber, 10)}`;
+    if (!/^day[1-6]$/.test(dayKey)) {
+      return res.status(400).json({ message: 'dayNumber must be 1-6' });
+    }
+    if (!schoolId || !isValidObjectId(schoolId)) {
+      return res.status(400).json({ message: 'Valid schoolId is required' });
+    }
+
+    const school = await School.findById(schoolId);
+    if (!school) return res.status(404).json({ message: 'School not found' });
+
+    const students = await Student.find({ school: schoolId });
+    const rows = students.map(s => ({
+      'Register No': s.registrationNo,
+      'Name': s.name,
+      'Class': s.class || '',
+      'DOB': s.dob || '',
+      'Age Group': s.ageGroup || '',
+      'Day': dayKey,
+      'Day Result': s.dayVerification?.[dayKey]?.result || 'pending',
+      'Day Confidence': s.dayVerification?.[dayKey]?.confidence || '',
+      'Day Date': s.dayVerification?.[dayKey]?.date ? new Date(s.dayVerification[dayKey].date).toISOString().split('T')[0] : ''
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, `${dayKey.toUpperCase()} Details`);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${school.name}_${dayKey}_details.xlsx"`);
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    res.send(buffer);
+  } catch (err) {
+    console.error('Download day details error:', err);
+    res.status(500).json({ message: 'Failed to generate day download', error: err.message });
+  }
+});
+ 
+ // Get student by ID
+ router.get('/:id', auth, async (req, res) => {
+   try {
+     const { id } = req.params;
+
+     if (!isValidObjectId(id)) {
+       return res.status(400).json({ message: 'Invalid student ID format' });
+     }
+
+     const student = await Student.findById(id).populate('school', 'name groupPhoto');
+     
+     if (!student) {
+       return res.status(404).json({ message: 'Student not found' });
+     }
+
+     res.json({
+       student: formatStudentResponse(student),
+       school: student.school
+     });
+
+   } catch (err) {
+     console.error('Get student error:', err);
+     res.status(500).json({ 
+       message: 'Failed to fetch student',
+       error: err.message 
+     });
+   }
+ });
 
 // Update student information
 router.put('/:id', auth, async (req, res) => {
