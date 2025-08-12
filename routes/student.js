@@ -425,7 +425,7 @@ router.post('/:id/manual-verify', auth, async (req, res) => {
 router.post('/:id/reset-verification', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const { reason, clearDay1Photo } = req.body;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid student ID format' });
@@ -457,6 +457,13 @@ router.post('/:id/reset-verification', auth, async (req, res) => {
     // Add reset metadata
     student.lastResetDate = new Date();
     if (reason) student.resetReason = reason.trim();
+
+    // If triggered from Day 1 re-verify, clear stored Day 1 photo and day1 result
+    if (clearDay1Photo) {
+      student.day1Photo = null;
+      if (!student.dayVerification) student.dayVerification = {};
+      student.dayVerification.day1 = { result: 'pending', date: new Date(), confidence: null };
+    }
 
     await student.save();
 
