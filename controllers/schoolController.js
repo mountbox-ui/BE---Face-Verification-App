@@ -14,11 +14,14 @@ const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
 const MODELS_PATH = path.join(__dirname, '../models/face_models');
+let modelsLoaded = false;
 
 async function loadFaceApiModels() {
+  if (modelsLoaded) return;
   await faceapi.nets.tinyFaceDetector.loadFromDisk(MODELS_PATH);
   await faceapi.nets.faceLandmark68Net.loadFromDisk(MODELS_PATH);
   await faceapi.nets.faceRecognitionNet.loadFromDisk(MODELS_PATH);
+  modelsLoaded = true;
 }
 
 async function extractGroupDescriptors(imageBuffer, imageMimeType) {
@@ -33,7 +36,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     // Normalize the image via sharp: rotate if needed, resize to a reasonable width, ensure alpha channel, convert to PNG
     const processedBuffer = await sharp(imageBuffer)
       .rotate()
-      .resize({ width: 1280, withoutEnlargement: true })
+      .resize({ width: 960, withoutEnlargement: true })
       .toFormat('png')
       .ensureAlpha()
       .toBuffer();
@@ -53,7 +56,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     // Pass the imageData directly to face-api.js
     // console.log('First detection attempt - Inputting ImageData with dimensions:', imageData.width, 'x', imageData.height);
     const detections = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
-      inputSize: 416,
+      inputSize: 320,
       scoreThreshold: 0.3
     }))
     .withFaceLandmarks()
@@ -62,7 +65,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     if (detections.length === 0) {
       // console.log('No faces found with first attempt, trying with img on second attempt. Inputting ImageData with dimensions:', imageData.width, 'x', imageData.height);
       const detections2 = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
-        inputSize: 320,
+        inputSize: 256,
         scoreThreshold: 0.1
       }))
       .withFaceLandmarks()
