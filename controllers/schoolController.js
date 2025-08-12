@@ -5,6 +5,7 @@ const Student = require('../models/Student');
 const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 
 // Face-api.js setup
 const faceapi = require('face-api.js');
@@ -29,8 +30,16 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
 
     await loadFaceApiModels();
     
+    // Normalize the image via sharp: rotate if needed, resize to a reasonable width, ensure alpha channel, convert to PNG
+    const processedBuffer = await sharp(imageBuffer)
+      .rotate()
+      .resize({ width: 1280, withoutEnlargement: true })
+      .toFormat('png')
+      .ensureAlpha()
+      .toBuffer();
+
     // Use canvas.loadImage directly with buffer to get an Image object
-    const img = await canvas.loadImage(imageBuffer);
+    const img = await canvas.loadImage(processedBuffer);
     // console.log('Image loaded by canvas.loadImage, dimensions:', img.width, 'x', img.height);
     
     // Explicitly create a canvas and draw the image onto it
@@ -44,7 +53,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     // Pass the imageData directly to face-api.js
     // console.log('First detection attempt - Inputting ImageData with dimensions:', imageData.width, 'x', imageData.height);
     const detections = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
-      inputSize: 512,
+      inputSize: 416,
       scoreThreshold: 0.3
     }))
     .withFaceLandmarks()
@@ -53,7 +62,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     if (detections.length === 0) {
       // console.log('No faces found with first attempt, trying with img on second attempt. Inputting ImageData with dimensions:', imageData.width, 'x', imageData.height);
       const detections2 = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
-        inputSize: 256,
+        inputSize: 320,
         scoreThreshold: 0.1
       }))
       .withFaceLandmarks()
@@ -121,17 +130,6 @@ exports.addSchool = async (req, res) => {
     const school = new School(schoolData);
     await school.save();
 
-    // Extract and save group descriptors if group photo exists
-    if (groupPhoto) {
-      try {
-        // const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
-        // school.groupDescriptors = descriptors;
-        // await school.save();
-      } catch (err) {
-        console.error('Error extracting group descriptors:', err);
-      }
-    }
-
     // Add students with robust header mapping
     const students = await Student.insertMany(
       data.map(row => ({
@@ -149,11 +147,7 @@ exports.addSchool = async (req, res) => {
     school.students = students.map(s => s._id);
     await school.save();
 
-    // No file cleanup needed as using memory storage
-    // if (xlsFile && fs.existsSync(xlsFile.path)) {
-    //   fs.unlinkSync(xlsFile.path);
-    // }
-
+    // Respond immediately
     res.json({
       message: 'School and students added successfully',
       school: {
@@ -164,6 +158,24 @@ exports.addSchool = async (req, res) => {
         studentsCount: students.length
       }
     });
+
+    // Extract and save group descriptors in background to keep submit fast
+    if (groupPhoto) {
+      setImmediate(async () => {
+        try {
+          const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
+          await School.findByIdAndUpdate(school._id, { groupDescriptors: descriptors });
+          console.log(`Saved ${descriptors.length} descriptors for school ${school._id}`);
+        } catch (err) {
+          console.error('Background descriptor extraction failed:', err);
+        }
+      });
+    }
+
+    // No file cleanup needed as using memory storage
+    // if (xlsFile && fs.existsSync(xlsFile.path)) {
+    //   fs.unlinkSync(xlsFile.path);
+    // }
 
   } catch (err) {
     console.error('Error in addSchool:', err);
