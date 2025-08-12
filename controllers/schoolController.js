@@ -29,8 +29,17 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
 
     await loadFaceApiModels();
     
-    const img = await canvas.loadImage(imageBuffer);
-    console.log('Image loaded by canvas.loadImage, dimensions:', img.width, 'x', img.height);
+    // Create a new canvas Image and load the buffer into it
+    const img = new canvas.Image();
+    img.src = imageBuffer; // Load buffer into img.src
+    
+    // Ensure image is loaded (this is usually async)
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = (err) => reject(new Error('Failed to load image into canvas.Image: ' + err));
+    });
+    
+    console.log('Canvas.Image loaded, dimensions:', img.width, 'x', img.height);
     
     const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
       inputSize: 512,
