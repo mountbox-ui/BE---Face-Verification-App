@@ -43,19 +43,14 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
 
     // Use canvas.loadImage directly with buffer to get an Image object
     const img = await canvas.loadImage(processedBuffer);
-    // console.log('Image loaded by canvas.loadImage, dimensions:', img.width, 'x', img.height);
     
     // Explicitly create a canvas and draw the image onto it
     const c = new canvas.Canvas(img.width, img.height);
     const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0, img.width, img.height);
     
-    // Get ImageData from the canvas for face-api.js
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
-    
-    // Pass the imageData directly to face-api.js
-    // console.log('First detection attempt - Inputting ImageData with dimensions:', imageData.width, 'x', imageData.height);
-    const detections = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
+    // First detection attempt using the canvas
+    const detections = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({
       inputSize: 320,
       scoreThreshold: 0.3
     }))
@@ -63,8 +58,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     .withFaceDescriptors();
     
     if (detections.length === 0) {
-      // console.log('No faces found with first attempt, trying with img on second attempt. Inputting ImageData with dimensions:', imageData.width, 'x', imageData.height);
-      const detections2 = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
+      const detections2 = await faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({
         inputSize: 256,
         scoreThreshold: 0.1
       }))
