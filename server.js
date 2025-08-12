@@ -8,6 +8,12 @@ require('dotenv').config();
 // Initialize Express app
 const app = express();
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -37,12 +43,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
 // Route imports
 const authRoutes = require('./routes/auth');
 const schoolRoutes = require('./routes/school');
@@ -61,7 +61,7 @@ app.use('/api/upload', uploadRoutes);
 app.get('/', (req, res) => {
   res.json({
     message: 'Face Verification API is running',
-    version: '1.0.0',
+    version: '1.00',
     endpoints: [
       '/api/auth',
       '/api/school',
