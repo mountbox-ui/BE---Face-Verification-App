@@ -38,7 +38,7 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     // Decode and normalize entirely with sharp to avoid node-canvas decoder issues
     const { data: rgba, info } = await sharp(imageBuffer)
       .rotate()
-      .resize({ width: 960, withoutEnlargement: true })
+      .resize({ width: 720, withoutEnlargement: true })
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -54,13 +54,13 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
 
     // Detection with TinyFaceDetector
     const detections = await faceapi
-      .detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+      .detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 }))
       .withFaceLandmarks()
       .withFaceDescriptors();
 
     if (detections.length === 0) {
       const detections2 = await faceapi
-        .detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 }))
+        .detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.15 }))
         .withFaceLandmarks()
         .withFaceDescriptors();
 
@@ -147,23 +147,6 @@ exports.addSchool = async (req, res) => {
     // Link students to school
     school.students = students.map(s => s._id);
 
-    // If we have a group photo URL, synchronously extract and save descriptors now
-    if (school.groupPhoto) {
-      try {
-        const resp = await axios.get(school.groupPhoto, { responseType: 'arraybuffer' });
-        const buf = Buffer.from(resp.data);
-        const descriptors = await extractGroupDescriptors(buf, 'image/jpeg');
-        school.groupDescriptors = descriptors;
-        school.groupDescriptorsStatus = 'ready';
-        school.groupDescriptorsError = null;
-        school.groupDescriptorsUpdatedAt = new Date();
-      } catch (err) {
-        console.error('Synchronous descriptor extraction failed:', err);
-        school.groupDescriptorsStatus = 'error';
-        school.groupDescriptorsError = err.message;
-      }
-    }
-
     await school.save();
 
     // Respond
@@ -176,9 +159,33 @@ exports.addSchool = async (req, res) => {
         groupPhoto: school.groupPhoto,
         studentsCount: students.length,
         descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0,
-        groupDescriptorsStatus: school.groupDescriptorsStatus || (school.groupDescriptors?.length ? 'ready' : 'idle')
+        groupDescriptorsStatus: school.groupDescriptorsStatus || 'processing'
       }
     });
+
+    // Trigger background extraction to keep UX fast
+    if (school.groupPhoto) {
+      await School.findByIdAndUpdate(school._id, { groupDescriptorsStatus: 'processing', groupDescriptorsError: null });
+      setImmediate(async () => {
+        try {
+          const resp = await axios.get(school.groupPhoto, { responseType: 'arraybuffer' });
+          const buf = Buffer.from(resp.data);
+          const descriptors = await extractGroupDescriptors(buf, 'image/jpeg');
+          await School.findByIdAndUpdate(school._id, {
+            groupDescriptors: descriptors,
+            groupDescriptorsStatus: 'ready',
+            groupDescriptorsError: null,
+            groupDescriptorsUpdatedAt: new Date()
+          });
+        } catch (err) {
+          await School.findByIdAndUpdate(school._id, {
+            groupDescriptorsStatus: 'error',
+            groupDescriptorsError: err.message,
+            groupDescriptorsUpdatedAt: new Date()
+          });
+        }
+      });
+    }
 
   } catch (err) {
     console.error('Error in addSchool:', err);
