@@ -104,6 +104,35 @@ router.get('/download/all-verified', auth, async (req, res) => {
   }
 });
 
+// Client-computed descriptors save endpoint
+router.post('/:schoolId/group-descriptors', auth, async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    const { descriptors } = req.body;
+
+    if (!isValidObjectId(schoolId)) {
+      return res.status(400).json({ message: 'Invalid school ID format' });
+    }
+    if (!Array.isArray(descriptors) || descriptors.length === 0) {
+      return res.status(400).json({ message: 'Descriptors array is required' });
+    }
+
+    const school = await School.findById(schoolId);
+    if (!school) return res.status(404).json({ message: 'School not found' });
+
+    school.groupDescriptors = descriptors;
+    school.groupDescriptorsStatus = 'ready';
+    school.groupDescriptorsError = null;
+    school.groupDescriptorsUpdatedAt = new Date();
+    await school.save();
+
+    res.json({ message: `Saved ${descriptors.length} descriptors`, descriptorsCount: descriptors.length });
+  } catch (err) {
+    console.error('Save group descriptors error:', err);
+    res.status(500).json({ message: 'Failed to save descriptors', error: err.message });
+  }
+});
+
 // Get students by school
 router.get('/:schoolId/students', auth, async (req, res) => {
   try {
