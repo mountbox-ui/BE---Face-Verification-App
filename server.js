@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+console.log('NODE_ENV:', process.env.NODE_ENV);
 
 // Initialize Express app
 const app = express();
