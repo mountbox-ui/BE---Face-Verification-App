@@ -8,6 +8,11 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
+console.log('Cloudinary Config:', {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET',
+  api_key: process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET',
+  api_secret: process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET',
+});
 
 // Set up Cloudinary storage
 const storage = new CloudinaryStorage({
@@ -20,7 +25,7 @@ const storage = new CloudinaryStorage({
 
     if (file.fieldname === 'xlsFile') {
       folder = 'excel_uploads'; // Separate folder for Excel files
-      allowed_formats = ['xlsx', 'xls']; // Allow Excel formats
+      allowed_formats = ['xlsx', 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']; // Allow Excel formats and its MIME type
       resource_type = 'raw'; // Treat as raw file
     }
     
