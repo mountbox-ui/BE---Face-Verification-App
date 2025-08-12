@@ -1,54 +1,58 @@
-// app.use(cors({
-//   origin: function (origin, callback) {
-//     // Allow requests with no origin (like mobile apps or curl)
-//     if (!origin) return callback(null, true);
-//     if (allowedOrigins.indexOf(origin) === -1) {
-//       const msg = "The CORS policy for this site does not allow access from the specified Origin.";
-//       return callback(new Error(msg), false);
-//     }
-//     return callback(null, true);
-//   },
-//   credentials: true
-// }));
-
-// app.use(cors({
-//   // origin: 'https://fe-face-verification-app.onrender.com',
-//   origin: 'http://localhost:3000',
-//   credentials: true
-// }))
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
-
-// Initialize Express app first
+// Initialize Express app
 const app = express();
 
-// CORS configuration
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Define allowed origins
 const allowedOrigins = [
-  "https://fe-face-verification-app.onrender.com",
-  "http://localhost:3000"
+  'http://localhost:3000',
+  'https://fe-face-verification-app.onrender.com'
 ];
 
+// CORS configuration - Use only one CORS middleware
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps, curl requests, or server-to-server)
     if (!origin) return callback(null, true);
+    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
 
 // Middleware
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running',
+    timestamp: new Date().toISOString() 
+  });
+});
 
 // Route imports
 const authRoutes = require('./routes/auth');
@@ -57,31 +61,118 @@ const studentRoutes = require('./routes/student');
 const verificationRoutes = require('./routes/verification');
 const uploadRoutes = require('./routes/upload');
 
-// Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/school', schoolRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/verification', verificationRoutes);
-app.use('/api', uploadRoutes);
+app.use('/api/upload', uploadRoutes);
 
-// Error handling middleware (should be after all routes)
+// Root route for testing
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Face Verification API is running',
+    version: '1.0.0',
+    endpoints: [
+      '/api/auth',
+      '/api/school',
+      '/api/student',
+      '/api/verification',
+      '/api/upload'
+    ]
+  });
+});
+
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    message: 'Route not found',
+    path: req.originalUrl 
+  });
+});
+
+// Global error handling middleware (must be last)
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: err.message });
+  console.error('Global Error Handler:', {
+    message: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Don't leak error details in production
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    ...(isDevelopment && { stack: err.stack })
+  });
 });
 
 // Database connection and server start
 const PORT = process.env.PORT || 5000;
+const MONGO_URL = process.env.MONGO_URL || process.env.MONGODB_URI;
 
-mongoose.connect(process.env.MONGO_URL)
-  .then(() => {
-    console.log('Connected to MongoDB');
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
+if (!MONGO_URL) {
+  console.error('❌ MongoDB connection string not found in environment variables');
+  console.error('Please set MONGO_URL or MONGODB_URI in your .env file');
+  process.exit(1);
+}
+
+// Connect to MongoDB
+mongoose.connect(MONGO_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => {
+  console.log('✅ Connected to MongoDB');
+  
+  // Start server only after successful database connection
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📁 Uploads directory: ${uploadsDir}`);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔗 Local URL: http://localhost:${PORT}`);
+      console.log(`📋 API Documentation: http://localhost:${PORT}/`);
+    }
   });
+  
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      mongoose.connection.close();
+      process.exit(0);
+    });
+  });
+  
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      mongoose.connection.close();
+      process.exit(0);
+    });
+  });
+})
+.catch((err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+  process.exit(1);
+});
 
-// Export app for testing purposes
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Close server & exit process
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
 module.exports = app;

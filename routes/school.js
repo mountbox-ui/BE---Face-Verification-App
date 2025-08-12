@@ -208,10 +208,4 @@ router.get('/:schoolId', auth, async (req, res) => {
 // Regenerate group descriptors for a school
 router.post('/:schoolId/regenerate-descriptors', auth, schoolController.regenerateGroupDescriptors);
 
-// New route for your specific handler
-router.get('/your-path', schoolController.someHandler);
-
-module.exports = {
-  downloadAllVerified: async (req, res) => { /* ... */ },
-  // other handlers...
-};
+module.exports = router;
