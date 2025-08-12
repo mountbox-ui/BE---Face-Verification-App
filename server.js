@@ -23,7 +23,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  // Do not set Access-Control-Allow-Credentials with wildcard origin
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -153,14 +153,13 @@ mongoose.connect(MONGO_URL, {
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Close server & exit process
-  process.exit(1);
+  // Do not exit; keep server alive
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
-  process.exit(1);
+  // Do not exit immediately; allow process manager to decide
 });
 
 module.exports = app;
