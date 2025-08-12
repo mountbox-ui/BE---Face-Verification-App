@@ -1,21 +1,3 @@
-// const express = require('express');
-// const router = express.Router();
-// const auth = require('../middleware/auth');
-// const Student = require('../models/Student');
-
-// // Mark verification result
-// router.post('/:studentId', auth, async (req, res) => {
-//     const { result } = req.body; // 'success' or 'failed'
-//     const student = await Student.findByIdAndUpdate(
-//         req.params.studentId,
-//         { verified: result === 'success', verificationResult: result },
-//         { new: true }
-//     );
-//     res.json(student);
-// });
-
-// module.exports = router;
-
 // For real face verification on local server
 const express = require('express');
 const router = express.Router();

@@ -84,7 +84,7 @@ app.get('/', (req, res) => {
 });
 
 // 404 handler for undefined routes
-app.use('*', (req, res) => {
+app.use('/*catchall', (req, res) => {
   res.status(404).json({ 
     message: 'Route not found',
     path: req.originalUrl 
