@@ -21,7 +21,19 @@ async function loadFaceApiModels() {
 }
 
 async function extractGroupDescriptors(imagePath) {
+  console.log('Attempting to extract descriptors from image path:', imagePath);
   try {
+    if (!fs.existsSync(imagePath)) {
+      console.error('Error: Image file does not exist at path:', imagePath);
+      throw new Error(`Image file not found: ${imagePath}`);
+    }
+    const fileSize = fs.statSync(imagePath).size;
+    if (fileSize === 0) {
+      console.error('Error: Image file is empty at path:', imagePath);
+      throw new Error(`Image file is empty: ${imagePath}`);
+    }
+    console.log(`Image file exists: ${imagePath}, size: ${fileSize} bytes`);
+    
     await loadFaceApiModels();
     
     const img = await canvas.loadImage(imagePath);
