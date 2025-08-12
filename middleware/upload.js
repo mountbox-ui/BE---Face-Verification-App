@@ -13,6 +13,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
+    console.log('Cloudinary upload params for file:', { fieldname: file.fieldname, originalname: file.originalname, mimetype: file.mimetype });
     let folder = 'uploads';
     let allowed_formats = ['jpg', 'jpeg', 'png', 'webp'];
     let resource_type = 'image';
