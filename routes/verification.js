@@ -219,15 +219,11 @@ router.post('/:studentId', auth, async (req, res) => {
 
   try {
     const { studentId } = req.params;
-    const { capturedImage, schoolId, threshold } = req.body;
+    const { capturedImage, descriptor, schoolId, threshold } = req.body;
 
     // Validate required parameters
-    if (!capturedImage) {
-      return res.status(400).json({
-        success: false,
-        result: 'failed',
-        message: 'Captured image is required'
-      });
+    if (!capturedImage && !descriptor) {
+      return res.status(400).json({ success: false, result: 'failed', message: 'Captured image or descriptor is required' });
     }
 
     if (!schoolId) {
@@ -260,15 +256,26 @@ router.post('/:studentId', auth, async (req, res) => {
       });
     }
 
-    const extractionResult = await extractDescriptorFromBase64(capturedImage);
-    if (!extractionResult?.descriptor) {
-      await logVerificationAttempt(studentId, schoolId, 'failed', 0, 'No face detected');
-      return res.json({
-        success: false,
-        result: 'failed',
-        message: 'No face detected in captured image. Please ensure your face is clearly visible and try again.',
-        details: { faceDetected: false, imageQuality: 'poor' }
-      });
+    // Use client-provided descriptor if available, else extract on server
+    let capturedDescriptor;
+    let faceQuality = null;
+    let landmarksDetected = null;
+    if (Array.isArray(descriptor) && descriptor.length) {
+      capturedDescriptor = descriptor.map(Number);
+    } else {
+      const extractionResult = await extractDescriptorFromBase64(capturedImage);
+      if (!extractionResult?.descriptor) {
+        await logVerificationAttempt(studentId, schoolId, 'failed', 0, 'No face detected');
+        return res.json({
+          success: false,
+          result: 'failed',
+          message: 'No face detected in captured image. Please ensure your face is clearly visible and try again.',
+          details: { faceDetected: false, imageQuality: 'poor' }
+        });
+      }
+      capturedDescriptor = extractionResult.descriptor;
+      faceQuality = extractionResult.confidence ? parseFloat(extractionResult.confidence.toFixed(2)) : null;
+      landmarksDetected = extractionResult.landmarks;
     }
 
     const verificationThreshold = threshold && typeof threshold === 'number' ? threshold : CONFIG.VERIFICATION_THRESHOLD;
@@ -276,7 +283,7 @@ router.post('/:studentId', auth, async (req, res) => {
     // Prefer per-student descriptor if available
     let matchResult;
     if (Array.isArray(student.faceDescriptor) && student.faceDescriptor.length === 128) {
-      const distance = euclideanDistance(extractionResult.descriptor, student.faceDescriptor);
+      const distance = euclideanDistance(capturedDescriptor, student.faceDescriptor);
       matchResult = {
         match: distance < verificationThreshold,
         distance,
@@ -284,7 +291,7 @@ router.post('/:studentId', auth, async (req, res) => {
       };
     } else {
       // Fall back to group descriptors
-      matchResult = findBestMatch(extractionResult.descriptor, school.groupDescriptors, verificationThreshold);
+      matchResult = findBestMatch(capturedDescriptor, school.groupDescriptors, verificationThreshold);
     }
 
     // Update student verification status
@@ -309,8 +316,8 @@ router.post('/:studentId', auth, async (req, res) => {
         confidence: Math.round(matchResult.confidence),
         distance: matchResult.distance ? parseFloat(matchResult.distance.toFixed(4)) : null,
         threshold: verificationThreshold,
-        faceQuality: extractionResult.confidence ? parseFloat(extractionResult.confidence.toFixed(2)) : null,
-        landmarksDetected: extractionResult.landmarks,
+        faceQuality,
+        landmarksDetected,
         groupDescriptorsCount: Array.isArray(school.groupDescriptors) ? school.groupDescriptors.length : 0,
         usedStudentDescriptor: Array.isArray(student.faceDescriptor) && student.faceDescriptor.length === 128
       }
