@@ -22,10 +22,8 @@ const isValidObjectId = (id) => {
 router.post(
   '/add',
   auth,
-  upload.fields([
-    { name: 'xlsFile', maxCount: 1 },
-    { name: 'groupPhoto', maxCount: 1 }
-  ]),
+  upload.excelUpload.single('xlsFile'), // Use dedicated Excel upload middleware
+  upload.imageUpload.single('groupPhoto'), // Use dedicated Image upload middleware
   schoolController.addSchool
 );
 

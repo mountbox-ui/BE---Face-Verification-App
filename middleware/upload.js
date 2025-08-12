@@ -9,33 +9,64 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Set up Cloudinary storage
-const storage = new CloudinaryStorage({
+// Storage for image uploads (e.g., group photos)
+const imageStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: async (req, file) => {
-    let folder = 'uploads';
-    let allowed_formats = [];
-    let resource_type = 'image'; // Default to image
-
-    if (file.fieldname === 'xlsFile') {
-      folder = 'excel_uploads';
-      allowed_formats = ['xlsx', 'xls'];
-      resource_type = 'raw'; // Explicitly set to raw for Excel
-    } else if (file.fieldname === 'groupPhoto') {
-      folder = 'uploads';
-      allowed_formats = ['jpg', 'jpeg', 'png', 'webp'];
-      resource_type = 'image'; // Explicitly set to image for photos
-    }
-    
-    return {
-      folder: folder,
-      allowed_formats: allowed_formats,
-      resource_type: resource_type,
-      public_id: Date.now() + '-' + file.originalname.split('.')[0]
-    };
+  params: {
+    folder: 'uploads/images',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    resource_type: 'image', // Explicitly image
+    public_id: (req, file) => Date.now() + '-' + file.originalname.split('.')[0]
   }
 });
 
-const upload = multer({ storage });
+// Storage for raw file uploads (e.g., Excel files)
+const excelStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'uploads/excel',
+    allowed_formats: ['xlsx', 'xls'],
+    resource_type: 'raw', // Explicitly raw
+    public_id: (req, file) => Date.now() + '-' + file.originalname.split('.')[0]
+  }
+});
 
-module.exports = upload;
+// Multer instances for different file types
+exports.imageUpload = multer({ storage: imageStorage });
+exports.excelUpload = multer({ storage: excelStorage });
+
+// Combined upload middleware for routes
+exports.fields = (fieldsArray) => {
+  return (req, res, next) => {
+    const uploadMiddleware = multer({
+      storage: new CloudinaryStorage({
+        cloudinary: cloudinary,
+        params: async (req, file) => {
+          if (file.fieldname === 'xlsFile') {
+            return {
+              folder: 'uploads/excel',
+              allowed_formats: ['xlsx', 'xls'],
+              resource_type: 'raw',
+              public_id: Date.now() + '-' + file.originalname.split('.')[0]
+            };
+          } else if (file.fieldname === 'groupPhoto') {
+            return {
+              folder: 'uploads/images',
+              allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+              resource_type: 'image',
+              public_id: Date.now() + '-' + file.originalname.split('.')[0]
+            };
+          }
+          return {}; // Default empty params if fieldname doesn't match
+        }
+      })
+    }).fields(fieldsArray);
+    uploadMiddleware(req, res, (err) => {
+      if (err) {
+        console.error('Multer upload error:', err);
+        return res.status(400).json({ message: err.message });
+      }
+      next();
+    });
+  };
+};
