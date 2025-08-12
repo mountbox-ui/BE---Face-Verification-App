@@ -164,13 +164,27 @@ exports.addSchool = async (req, res) => {
 
     // Extract and save group descriptors in background to keep submit fast
     if (groupPhoto) {
+      await School.findByIdAndUpdate(school._id, {
+        groupDescriptorsStatus: 'processing',
+        groupDescriptorsError: null
+      });
       setImmediate(async () => {
         try {
           const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
-          await School.findByIdAndUpdate(school._id, { groupDescriptors: descriptors });
+          await School.findByIdAndUpdate(school._id, { 
+            groupDescriptors: descriptors,
+            groupDescriptorsStatus: 'ready',
+            groupDescriptorsError: null,
+            groupDescriptorsUpdatedAt: new Date()
+          });
           console.log(`Saved ${descriptors.length} descriptors for school ${school._id}`);
         } catch (err) {
           console.error('Background descriptor extraction failed:', err);
+          await School.findByIdAndUpdate(school._id, {
+            groupDescriptorsStatus: 'error',
+            groupDescriptorsError: err.message,
+            groupDescriptorsUpdatedAt: new Date()
+          });
         }
       });
     }
@@ -216,7 +230,10 @@ exports.getSchoolById = async (req, res) => {
       _id: school._id,
       name: school.name,
       affNo: school.affNo,
-      groupPhoto: school.groupPhoto
+      groupPhoto: school.groupPhoto,
+      groupDescriptorsStatus: school.groupDescriptorsStatus,
+      groupDescriptorsUpdatedAt: school.groupDescriptorsUpdatedAt,
+      descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -265,37 +282,34 @@ exports.regenerateGroupDescriptors = async (req, res) => {
     if (!imageBuffer || imageBuffer.length === 0) {
       return res.status(400).json({ message: 'Extracted group photo data is empty or invalid.' });
     }
-    
-    try {
-      const descriptors = await extractGroupDescriptors(imageBuffer, imageMimeType);
-      
-      if (!descriptors || descriptors.length === 0) {
-        return res.status(400).json({ 
-          message: 'No face descriptors could be extracted from the group photo',
-          suggestion: 'Please ensure the group photo contains clear, visible faces with good lighting and try again.'
+
+    // Mark as processing and return immediately
+    await School.findByIdAndUpdate(schoolId, {
+      groupDescriptorsStatus: 'processing',
+      groupDescriptorsError: null
+    });
+
+    setImmediate(async () => {
+      try {
+        const descriptors = await extractGroupDescriptors(imageBuffer, imageMimeType);
+        await School.findByIdAndUpdate(schoolId, {
+          groupDescriptors: descriptors,
+          groupDescriptorsStatus: 'ready',
+          groupDescriptorsError: null,
+          groupDescriptorsUpdatedAt: new Date()
+        });
+        console.log(`Regenerated ${descriptors.length} descriptors for school ${schoolId}`);
+      } catch (err) {
+        console.error('Error regenerating group descriptors:', err);
+        await School.findByIdAndUpdate(schoolId, {
+          groupDescriptorsStatus: 'error',
+          groupDescriptorsError: err.message,
+          groupDescriptorsUpdatedAt: new Date()
         });
       }
-      
-      school.groupDescriptors = descriptors;
-      await school.save();
-      
-      res.json({
-        message: `Successfully regenerated ${descriptors.length} face descriptors`,
-        descriptorsCount: descriptors.length,
-        school: {
-          _id: school._id,
-          name: school.name,
-          groupPhoto: school.groupPhoto
-        }
-      });
-    } catch (err) {
-      console.error('Error regenerating group descriptors:', err);
-      res.status(400).json({ 
-        message: 'Failed to extract face descriptors from group photo',
-        error: err.message,
-        suggestion: 'Please ensure the group photo contains clear, visible faces with good lighting and minimal obstructions. Try uploading a different photo if the issue persists.'
-      });
-    }
+    });
+    
+    return res.status(202).json({ message: 'Descriptor regeneration started', status: 'processing' });
   } catch (err) {
     console.error('Error in regenerateGroupDescriptors:', err);
     res.status(500).json({ message: err.message });
