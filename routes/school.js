@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const schoolController = require('../controllers/schoolController');
 const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const schoolController = require('../controllers/schoolController');
 const School = require('../models/School');
 const Student = require('../models/Student');
 const XLSX = require('xlsx');
@@ -208,4 +208,10 @@ router.get('/:schoolId', auth, async (req, res) => {
 // Regenerate group descriptors for a school
 router.post('/:schoolId/regenerate-descriptors', auth, schoolController.regenerateGroupDescriptors);
 
-module.exports = router;
+// New route for your specific handler
+router.get('/your-path', schoolController.someHandler);
+
+module.exports = {
+  downloadAllVerified: async (req, res) => { /* ... */ },
+  // other handlers...
+};
