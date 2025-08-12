@@ -121,18 +121,6 @@ exports.addSchool = async (req, res) => {
 
     // Upload group photo to Cloudinary if provided
     if (groupPhoto) {
-      const uploadResult = await cloudinary.uploader.upload_stream({
-        folder: 'group-photos',
-        resource_type: 'image',
-        format: 'jpg'
-      }, async (error, result) => {
-        if (error) throw error;
-        return result;
-      });
-    }
-
-    // Instead of stream, use upload with buffer (promisified)
-    if (groupPhoto) {
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream({ folder: 'group-photos', resource_type: 'image' }, (err, res) => {
           if (err) return reject(err);
@@ -162,9 +150,27 @@ exports.addSchool = async (req, res) => {
 
     // Link students to school
     school.students = students.map(s => s._id);
+
+    // If we have a group photo URL, synchronously extract and save descriptors now
+    if (school.groupPhoto) {
+      try {
+        const resp = await axios.get(school.groupPhoto, { responseType: 'arraybuffer' });
+        const buf = Buffer.from(resp.data);
+        const descriptors = await extractGroupDescriptors(buf, 'image/jpeg');
+        school.groupDescriptors = descriptors;
+        school.groupDescriptorsStatus = 'ready';
+        school.groupDescriptorsError = null;
+        school.groupDescriptorsUpdatedAt = new Date();
+      } catch (err) {
+        console.error('Synchronous descriptor extraction failed:', err);
+        school.groupDescriptorsStatus = 'error';
+        school.groupDescriptorsError = err.message;
+      }
+    }
+
     await school.save();
 
-    // Respond immediately
+    // Respond
     res.json({
       message: 'School and students added successfully',
       school: {
@@ -172,39 +178,11 @@ exports.addSchool = async (req, res) => {
         name: school.name,
         affNo: school.affNo,
         groupPhoto: school.groupPhoto,
-        studentsCount: students.length
+        studentsCount: students.length,
+        descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0,
+        groupDescriptorsStatus: school.groupDescriptorsStatus || (school.groupDescriptors?.length ? 'ready' : 'idle')
       }
     });
-
-    // Extract and save group descriptors in background to keep submit fast
-    if (school.groupPhoto) {
-      await School.findByIdAndUpdate(school._id, {
-        groupDescriptorsStatus: 'processing',
-        groupDescriptorsError: null
-      });
-      setImmediate(async () => {
-        try {
-          // fetch image bytes from URL
-          const resp = await axios.get(school.groupPhoto, { responseType: 'arraybuffer' });
-          const buf = Buffer.from(resp.data);
-          const descriptors = await extractGroupDescriptors(buf, 'image/jpeg');
-          await School.findByIdAndUpdate(school._id, { 
-            groupDescriptors: descriptors,
-            groupDescriptorsStatus: 'ready',
-            groupDescriptorsError: null,
-            groupDescriptorsUpdatedAt: new Date()
-          });
-          console.log(`Saved ${descriptors.length} descriptors for school ${school._id}`);
-        } catch (err) {
-          console.error('Background descriptor extraction failed:', err);
-          await School.findByIdAndUpdate(school._id, {
-            groupDescriptorsStatus: 'error',
-            groupDescriptorsError: err.message,
-            groupDescriptorsUpdatedAt: new Date()
-          });
-        }
-      });
-    }
 
   } catch (err) {
     console.error('Error in addSchool:', err);
