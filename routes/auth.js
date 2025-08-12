@@ -8,6 +8,7 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+    console.log('Received login attempt with body:', req.body);
 
     // Check for specific hardcoded credentials
     if (username === 'admin' && password === 'admin123') {

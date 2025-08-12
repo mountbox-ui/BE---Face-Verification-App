@@ -8,6 +8,10 @@ require('dotenv').config();
 // Initialize Express app
 const app = express();
 
+// Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Middleware to set CORS headers manually (for debugging)
 app.use((req, res, next) => {
   console.log('Incoming request origin:', req.headers.origin);
@@ -19,6 +23,18 @@ app.use((req, res, next) => {
     return res.sendStatus(200);
   }
   next();
+});
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Ensure uploads directory exists
@@ -43,7 +59,7 @@ app.use('/api/upload', uploadRoutes);
 
 // Root route for testing
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Face Verification API is running',
     version: '1.0.0',
     endpoints: [
@@ -58,9 +74,9 @@ app.get('/', (req, res) => {
 
 // 404 handler for undefined routes
 app.use('/*catchall', (req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     message: 'Route not found',
-    path: req.originalUrl 
+    path: req.originalUrl
   });
 });
 
@@ -73,10 +89,10 @@ app.use((err, req, res, next) => {
     method: req.method,
     timestamp: new Date().toISOString()
   });
-  
+
   // Don't leak error details in production
   const isDevelopment = process.env.NODE_ENV === 'development';
-  
+
   res.status(err.status || 500).json({
     message: err.message || 'Internal Server Error',
     ...(isDevelopment && { stack: err.stack })
@@ -100,19 +116,19 @@ mongoose.connect(MONGO_URL, {
 })
 .then(() => {
   console.log('✅ Connected to MongoDB');
-  
+
   // Start server only after successful database connection
   const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📁 Uploads directory: ${uploadsDir}`);
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.log(`🔗 Local URL: http://localhost:${PORT}`);
       console.log(`📋 API Documentation: http://localhost:${PORT}/`);
     }
   });
-  
+
   // Graceful shutdown
   process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully');
@@ -121,7 +137,7 @@ mongoose.connect(MONGO_URL, {
       process.exit(0);
     });
   });
-  
+
   process.on('SIGINT', () => {
     console.log('SIGINT received, shutting down gracefully');
     server.close(() => {
