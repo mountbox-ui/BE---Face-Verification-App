@@ -32,7 +32,8 @@
     "compression": "^1.7.4",
     "morgan": "^1.10.0",
     "xlsx": "^0.18.5",
-    "sharp": "^0.32.6"
+    "sharp": "^0.32.6",
+    "multer-storage-cloudinary": "^4.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
