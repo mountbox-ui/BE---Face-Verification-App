@@ -316,7 +316,7 @@ router.put('/:id', auth, async (req, res) => {
 router.post('/:id/manual-verify', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason, notes } = req.body;
+    const { reason, notes, photo, day } = req.body; // optional photo and day
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid student ID format' });
@@ -345,6 +345,17 @@ router.post('/:id/manual-verify', auth, async (req, res) => {
     // Add verification metadata
     if (reason) student.manualVerificationReason = reason.trim();
     if (notes) student.manualVerificationNotes = notes.trim();
+
+    // If Day 1 manual verify and photo provided, save Day 1 reference photo and day result
+    if ((day === 'day1' || day === 1) && photo) {
+      student.day1Photo = photo;
+      student.dayVerification = student.dayVerification || {};
+      student.dayVerification.day1 = {
+        result: 'manually_verified',
+        confidence: null,
+        date: new Date()
+      };
+    }
 
     await student.save();
 
