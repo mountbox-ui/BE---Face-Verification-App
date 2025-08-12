@@ -20,23 +20,16 @@ async function loadFaceApiModels() {
   await faceapi.nets.faceRecognitionNet.loadFromDisk(MODELS_PATH);
 }
 
-async function extractGroupDescriptors(imagePath) {
-  console.log('Attempting to extract descriptors from image path:', imagePath);
+async function extractGroupDescriptors(imageBuffer, imageMimeType) {
+  console.log('Attempting to extract descriptors from image buffer. Mime Type:', imageMimeType, 'Buffer length:', imageBuffer.length);
   try {
-    if (!fs.existsSync(imagePath)) {
-      console.error('Error: Image file does not exist at path:', imagePath);
-      throw new Error(`Image file not found: ${imagePath}`);
+    if (!imageBuffer || imageBuffer.length === 0) {
+      throw new Error('Image buffer is empty or invalid.');
     }
-    const fileSize = fs.statSync(imagePath).size;
-    if (fileSize === 0) {
-      console.error('Error: Image file is empty at path:', imagePath);
-      throw new Error(`Image file is empty: ${imagePath}`);
-    }
-    console.log(`Image file exists: ${imagePath}, size: ${fileSize} bytes`);
-    
+
     await loadFaceApiModels();
     
-    const img = await canvas.loadImage(imagePath);
+    const img = await canvas.loadImage(imageBuffer);
     
     const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
       inputSize: 512,
@@ -46,7 +39,6 @@ async function extractGroupDescriptors(imagePath) {
     .withFaceDescriptors();
     
     if (detections.length === 0) {
-      // Try with different parameters
       const detections2 = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
         inputSize: 256,
         scoreThreshold: 0.1
@@ -85,8 +77,8 @@ exports.addSchool = async (req, res) => {
 
     if (!xlsFile) return res.status(400).json({ message: 'XLS file is required' });
 
-    // Parse XLS
-    const workbook = XLSX.readFile(xlsFile.path);
+    // Parse XLS from buffer
+    const workbook = XLSX.read(xlsFile.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
@@ -106,9 +98,10 @@ exports.addSchool = async (req, res) => {
       students: []
     };
 
-    // Save group photo path if provided
+    // Store group photo as Base64 if provided
     if (groupPhoto) {
-      schoolData.groupPhoto = groupPhoto.path;
+      // Store as Data URL (Base64 string)
+      schoolData.groupPhoto = `data:${groupPhoto.mimetype};base64,${groupPhoto.buffer.toString('base64')}`;
     }
 
     // Create school
@@ -118,7 +111,7 @@ exports.addSchool = async (req, res) => {
     // Extract and save group descriptors if group photo exists
     if (groupPhoto) {
       try {
-        const descriptors = await extractGroupDescriptors(groupPhoto.path);
+        const descriptors = await extractGroupDescriptors(groupPhoto.buffer, groupPhoto.mimetype);
         school.groupDescriptors = descriptors;
         await school.save();
       } catch (err) {
@@ -143,10 +136,10 @@ exports.addSchool = async (req, res) => {
     school.students = students.map(s => s._id);
     await school.save();
 
-    // Clean up XLS file
-    if (xlsFile && fs.existsSync(xlsFile.path)) {
-      fs.unlinkSync(xlsFile.path);
-    }
+    // No file cleanup needed as using memory storage
+    // if (xlsFile && fs.existsSync(xlsFile.path)) {
+    //   fs.unlinkSync(xlsFile.path);
+    // }
 
     res.json({
       message: 'School and students added successfully',
@@ -205,17 +198,10 @@ exports.getSchoolById = async (req, res) => {
 exports.deleteSchool = async (req, res) => {
   try {
     const { schoolId } = req.params;
-    // Get school info for cleanup
+    // Get school info for cleanup (no file deletion as using Base64)
     const school = await School.findById(schoolId);
-    if (school && school.groupPhoto) {
-      try {
-        if (fs.existsSync(school.groupPhoto)) {
-          fs.unlinkSync(school.groupPhoto);
-        }
-      } catch (fileError) {
-        console.log('Error deleting group photo file:', fileError);
-      }
-    }
+    // No need to delete group photo file from disk as it's stored as Base64 in DB
+
     // Delete all students associated with this school
     await Student.deleteMany({ school: schoolId });
     // Delete the school
@@ -240,15 +226,20 @@ exports.regenerateGroupDescriptors = async (req, res) => {
       return res.status(400).json({ message: 'No group photo found for this school. Please upload a group photo first.' });
     }
     
-    // Check if group photo file exists
-    if (!fs.existsSync(school.groupPhoto)) {
-      return res.status(400).json({ 
-        message: 'Group photo file not found on server. The file may have been deleted or moved. Please upload a new group photo.' 
-      });
+    // Extract Base64 data and MIME type from the stored Data URL
+    if (!school.groupPhoto.startsWith('data:')) {
+      return res.status(400).json({ message: 'Stored group photo is not in expected Base64 format.' });
+    }
+    const [mimePart, base64Data] = school.groupPhoto.split(',');
+    const imageMimeType = mimePart.split(':')[1].split(';')[0];
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    
+    if (!imageBuffer || imageBuffer.length === 0) {
+      return res.status(400).json({ message: 'Extracted group photo data is empty or invalid.' });
     }
     
     try {
-      const descriptors = await extractGroupDescriptors(school.groupPhoto);
+      const descriptors = await extractGroupDescriptors(imageBuffer, imageMimeType);
       
       if (!descriptors || descriptors.length === 0) {
         return res.status(400).json({ 

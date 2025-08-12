@@ -1,31 +1,8 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs'); // Import fs module
+const path = require('path'); // Still needed for path.extname
 
-// Helper function to ensure directory exists
-const ensureDirExists = (dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-};
-
-const commonStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    let dest;
-    if (file.fieldname === 'xlsFile') {
-      dest = path.join(__dirname, '../uploads/excel');
-    } else if (file.fieldname === 'groupPhoto') {
-      dest = path.join(__dirname, '../uploads/images');
-    } else {
-      dest = path.join(__dirname, '../uploads'); // Fallback for other fields
-    }
-    ensureDirExists(dest);
-    cb(null, dest);
-  },
-  filename: function (req, file, cb) {
-    cb(null, file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
-  }
-});
+// Use memory storage for all files
+const storage = multer.memoryStorage();
 
 const commonFileFilter = (req, file, cb) => {
   if (file.fieldname === 'xlsFile') {
@@ -46,13 +23,12 @@ const commonFileFilter = (req, file, cb) => {
       cb(new Error('Only image files (jpg, jpeg, png, webp) are allowed for groupPhoto!'), false);
     }
   } else {
-    // For any other unexpected fields
     cb(new Error('Unexpected field type!'), false);
   }
 };
 
 const upload = multer({
-  storage: commonStorage,
+  storage: storage,
   fileFilter: commonFileFilter
 });
 
