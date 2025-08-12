@@ -1,72 +1,58 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('cloudinary').v2;
+const path = require('path');
 
-// Configure Cloudinary with environment variables
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/'); // Files will be saved in the 'uploads/' directory
+    },
+    filename: function (req, file, cb) {
+        // Use original filename with a timestamp to prevent overwrites
+        cb(null, file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
+    }
 });
 
-// Storage for image uploads (e.g., group photos)
-const imageStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'uploads/images',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    resource_type: 'image', // Explicitly image
-    public_id: (req, file) => Date.now() + '-' + file.originalname.split('.')[0]
-  }
-});
+const upload = multer({ storage: storage });
 
-// Storage for raw file uploads (e.g., Excel files)
-const excelStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'uploads/excel',
-    allowed_formats: ['xlsx', 'xls'],
-    resource_type: 'raw', // Explicitly raw
-    public_id: (req, file) => Date.now() + '-' + file.originalname.split('.')[0]
-  }
-});
-
-// Multer instances for different file types
-exports.imageUpload = multer({ storage: imageStorage });
-exports.excelUpload = multer({ storage: excelStorage });
-
-// Combined upload middleware for routes
+// Export the combined fields middleware
 exports.fields = (fieldsArray) => {
-  return (req, res, next) => {
-    const uploadMiddleware = multer({
-      storage: new CloudinaryStorage({
-        cloudinary: cloudinary,
-        params: async (req, file) => {
-          if (file.fieldname === 'xlsFile') {
-            return {
-              folder: 'uploads/excel',
-              allowed_formats: ['xlsx', 'xls'],
-              resource_type: 'raw',
-              public_id: Date.now() + '-' + file.originalname.split('.')[0]
-            };
-          } else if (file.fieldname === 'groupPhoto') {
-            return {
-              folder: 'uploads/images',
-              allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-              resource_type: 'image',
-              public_id: Date.now() + '-' + file.originalname.split('.')[0]
-            };
-          }
-          return {}; // Default empty params if fieldname doesn't match
-        }
-      })
-    }).fields(fieldsArray);
-    uploadMiddleware(req, res, (err) => {
-      if (err) {
-        console.error('Multer upload error:', err);
-        return res.status(400).json({ message: err.message });
-      }
-      next();
-    });
-  };
+  return upload.fields(fieldsArray);
 };
+
+// For single file uploads (if needed elsewhere)
+exports.single = (fieldName) => {
+  return upload.single(fieldName);
+};
+
+// Export specific upload types for clarity in routes
+exports.imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, 'uploads/images'); },
+    filename: function (req, file, cb) { cb(null, Date.now() + '-' + file.originalname); }
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (jpg, jpeg, png, webp) are allowed!'), false);
+    }
+  }
+});
+
+exports.excelUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, 'uploads/excel'); },
+    filename: function (req, file, cb) { cb(null, Date.now() + '-' + file.originalname); }
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel files (.xlsx, .xls) are allowed!'), false);
+    }
+  }
+});
