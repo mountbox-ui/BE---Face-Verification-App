@@ -1,9 +1,19 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs'); // Import fs module
+
+// Helper function to ensure directory exists
+const ensureDirExists = (dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+};
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/'); // Files will be saved in the 'uploads/' directory
+        const dest = path.join(__dirname, '../uploads'); // Base uploads directory
+        ensureDirExists(dest); // Ensure base uploads directory exists
+        cb(null, dest);
     },
     filename: function (req, file, cb) {
         // Use original filename with a timestamp to prevent overwrites
@@ -26,7 +36,11 @@ exports.single = (fieldName) => {
 // Export specific upload types for clarity in routes
 exports.imageUpload = multer({
   storage: multer.diskStorage({
-    destination: function (req, file, cb) { cb(null, 'uploads/images'); },
+    destination: function (req, file, cb) {
+      const dest = path.join(__dirname, '../uploads/images');
+      ensureDirExists(dest);
+      cb(null, dest);
+    },
     filename: function (req, file, cb) { cb(null, Date.now() + '-' + file.originalname); }
   }),
   fileFilter: (req, file, cb) => {
@@ -41,7 +55,11 @@ exports.imageUpload = multer({
 
 exports.excelUpload = multer({
   storage: multer.diskStorage({
-    destination: function (req, file, cb) { cb(null, 'uploads/excel'); },
+    destination: function (req, file, cb) {
+      const dest = path.join(__dirname, '../uploads/excel');
+      ensureDirExists(dest);
+      cb(null, dest);
+    },
     filename: function (req, file, cb) { cb(null, Date.now() + '-' + file.originalname); }
   }),
   fileFilter: (req, file, cb) => {
