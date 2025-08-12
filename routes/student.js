@@ -4,6 +4,10 @@ const auth = require('../middleware/auth');
 const Student = require('../models/Student');
 const School = require('../models/School');
 const XLSX = require('xlsx');
+const faceapi = require('face-api.js');
+const canvas = require('canvas');
+const { Canvas, Image, ImageData } = canvas;
+faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
 // Helper function to validate ObjectId
 const isValidObjectId = (id) => {
@@ -27,6 +31,7 @@ const formatStudentResponse = (student) => {
     faceDescriptors: student.faceDescriptors ? student.faceDescriptors.length : 0,
     day1Photo: student.day1Photo,
     dayVerification: student.dayVerification,
+    hasFaceDescriptor: Array.isArray(student.faceDescriptor) && student.faceDescriptor.length > 0,
     createdAt: student.createdAt,
     updatedAt: student.updatedAt
   };
@@ -131,6 +136,46 @@ router.get('/', auth, async (req, res) => {
       message: 'Failed to fetch students',
       error: err.message 
     });
+  }
+});
+
+// Save per-student descriptor from base64 (Day 1)
+router.post('/:id/save-descriptor', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { photo, descriptor } = req.body;
+    if (!isValidObjectId(id)) return res.status(400).json({ message: 'Invalid student ID format' });
+    if (!photo && !descriptor) return res.status(400).json({ message: 'photo (base64) or descriptor is required' });
+
+    const student = await Student.findById(id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    if (descriptor && Array.isArray(descriptor)) {
+      student.faceDescriptor = descriptor.map(Number);
+    } else {
+      // Compute from photo if descriptor not provided
+      await faceapi.nets.tinyFaceDetector.loadFromDisk('./models/face_models');
+      await faceapi.nets.faceLandmark68Net.loadFromDisk('./models/face_models');
+      await faceapi.nets.faceRecognitionNet.loadFromDisk('./models/face_models');
+      const buffer = Buffer.from(photo.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      const img = await canvas.loadImage(buffer);
+      const detection = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (!detection) return res.status(400).json({ message: 'No face detected in the photo' });
+      student.faceDescriptor = Array.from(detection.descriptor);
+    }
+    if (photo && !student.day1Photo) student.day1Photo = photo;
+    student.dayVerification = student.dayVerification || {};
+    if (!student.dayVerification.day1) student.dayVerification.day1 = {};
+    student.dayVerification.day1.result = 'success';
+    student.dayVerification.day1.date = new Date();
+    await student.save();
+
+    res.json({ message: 'Descriptor saved', hasFaceDescriptor: true });
+  } catch (err) {
+    console.error('Save descriptor error:', err);
+    res.status(500).json({ message: 'Failed to save descriptor', error: err.message });
   }
 });
 

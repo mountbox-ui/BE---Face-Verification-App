@@ -260,37 +260,32 @@ router.post('/:studentId', auth, async (req, res) => {
       });
     }
 
-    // Check if group descriptors exist
-    if (!school.groupDescriptors || school.groupDescriptors.length === 0) {
-      await logVerificationAttempt(studentId, schoolId, 'failed', 0, 'No group descriptors');
-      return res.json({
-        success: false,
-        result: 'failed',
-        message: 'No group descriptors found. Please regenerate face descriptors from the group photo or upload a new group photo with clear faces.'
-      });
-    }
-
-    // Extract face descriptor from captured image
     const extractionResult = await extractDescriptorFromBase64(capturedImage);
-    
-    if (!extractionResult || !extractionResult.descriptor) {
+    if (!extractionResult?.descriptor) {
       await logVerificationAttempt(studentId, schoolId, 'failed', 0, 'No face detected');
       return res.json({
         success: false,
         result: 'failed',
         message: 'No face detected in captured image. Please ensure your face is clearly visible and try again.',
-        details: {
-          faceDetected: false,
-          imageQuality: 'poor'
-        }
+        details: { faceDetected: false, imageQuality: 'poor' }
       });
     }
 
-    // Use custom threshold if provided, otherwise use default
     const verificationThreshold = threshold && typeof threshold === 'number' ? threshold : CONFIG.VERIFICATION_THRESHOLD;
 
-    // Find best match
-    const matchResult = findBestMatch(extractionResult.descriptor, school.groupDescriptors, verificationThreshold);
+    // Prefer per-student descriptor if available
+    let matchResult;
+    if (Array.isArray(student.faceDescriptor) && student.faceDescriptor.length === 128) {
+      const distance = euclideanDistance(extractionResult.descriptor, student.faceDescriptor);
+      matchResult = {
+        match: distance < verificationThreshold,
+        distance,
+        confidence: Math.max(0, (1 - distance) * 100)
+      };
+    } else {
+      // Fall back to group descriptors
+      matchResult = findBestMatch(extractionResult.descriptor, school.groupDescriptors, verificationThreshold);
+    }
 
     // Update student verification status
     const updateData = {
@@ -302,23 +297,22 @@ router.post('/:studentId', auth, async (req, res) => {
 
     await Student.findByIdAndUpdate(studentId, updateData, { new: true });
 
-    // Log verification attempt
     await logVerificationAttempt(studentId, schoolId, matchResult.match ? 'success' : 'failed', matchResult.confidence);
 
-    // Send response
     const response = {
       success: true,
       result: matchResult.match ? 'success' : 'failed',
       message: matchResult.match 
-        ? 'Face verification successful. You have been matched with the group photo.' 
-        : 'Face verification failed. Your face was not found in the group photo.',
+        ? 'Face verification successful. You have been matched.' 
+        : 'Face verification failed.',
       details: {
         confidence: Math.round(matchResult.confidence),
         distance: matchResult.distance ? parseFloat(matchResult.distance.toFixed(4)) : null,
         threshold: verificationThreshold,
         faceQuality: extractionResult.confidence ? parseFloat(extractionResult.confidence.toFixed(2)) : null,
         landmarksDetected: extractionResult.landmarks,
-        groupDescriptorsCount: school.groupDescriptors.length
+        groupDescriptorsCount: Array.isArray(school.groupDescriptors) ? school.groupDescriptors.length : 0,
+        usedStudentDescriptor: Array.isArray(student.faceDescriptor) && student.faceDescriptor.length === 128
       }
     };
 
@@ -327,12 +321,10 @@ router.post('/:studentId', auth, async (req, res) => {
   } catch (error) {
     console.error('Face verification error:', error);
 
-    // Log error attempt
     if (student && school) {
       await logVerificationAttempt(req.params.studentId, req.body.schoolId, 'error', 0, error.message);
     }
 
-    // Send appropriate error response
     if (error.message.includes('models not found') || error.message.includes('Face extraction failed')) {
       return res.status(503).json({
         success: false,

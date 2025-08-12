@@ -21,6 +21,8 @@ const studentSchema = new mongoose.Schema({
     manualVerificationDate: { type: Date },
     // Day 1 captured photo (used as reference for Days 2-6 table display)
     day1Photo: { type: String },
+    // Per-student face descriptor computed from Day 1 photo
+    faceDescriptor: { type: [Number], default: undefined },
     // Per-day verification results for 6-day program
     dayVerification: {
       day1: { type: dayVerificationSchema, default: () => ({ result: 'pending' }) },
