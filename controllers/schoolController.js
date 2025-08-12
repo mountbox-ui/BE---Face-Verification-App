@@ -40,8 +40,15 @@ async function extractGroupDescriptors(imageBuffer, imageMimeType) {
     });
     
     console.log('Canvas.Image loaded, dimensions:', img.width, 'x', img.height);
+
+    // Explicitly create a canvas and get ImageData from the loaded image
+    const c = new canvas.Canvas(img.width, img.height);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, img.width, img.height);
+    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    console.log('Extracted ImageData dimensions:', imageData.width, 'x', imageData.height);
     
-    const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
+    const detections = await faceapi.detectAllFaces(imageData, new faceapi.TinyFaceDetectorOptions({
       inputSize: 512,
       scoreThreshold: 0.3
     }))
