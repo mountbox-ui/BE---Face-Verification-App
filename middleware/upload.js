@@ -8,25 +8,23 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
-console.log('Cloudinary Config:', {
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET',
-  api_key: process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET',
-  api_secret: process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET',
-});
 
 // Set up Cloudinary storage
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
-    console.log('Cloudinary upload params for file:', { fieldname: file.fieldname, originalname: file.originalname, mimetype: file.mimetype });
     let folder = 'uploads';
-    let allowed_formats = ['jpg', 'jpeg', 'png', 'webp'];
-    let resource_type = 'image';
+    let allowed_formats = [];
+    let resource_type = 'image'; // Default to image
 
     if (file.fieldname === 'xlsFile') {
-      folder = 'excel_uploads'; // Separate folder for Excel files
-      allowed_formats = ['xlsx', 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']; // Allow Excel formats and its MIME type
-      resource_type = 'raw'; // Treat as raw file
+      folder = 'excel_uploads';
+      allowed_formats = ['xlsx', 'xls'];
+      resource_type = 'raw'; // Explicitly set to raw for Excel
+    } else if (file.fieldname === 'groupPhoto') {
+      folder = 'uploads';
+      allowed_formats = ['jpg', 'jpeg', 'png', 'webp'];
+      resource_type = 'image'; // Explicitly set to image for photos
     }
     
     return {

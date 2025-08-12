@@ -22,15 +22,10 @@ async function loadFaceApiModels() {
 
 async function extractGroupDescriptors(imagePath) {
   try {
-    console.log('Loading face detection models...');
     await loadFaceApiModels();
-    console.log('Models loaded successfully');
     
-    console.log('Loading image from path:', imagePath);
     const img = await canvas.loadImage(imagePath);
-    console.log('Image loaded successfully, dimensions:', img.width, 'x', img.height);
     
-    console.log('Detecting faces with TinyFaceDetector...');
     const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
       inputSize: 512,
       scoreThreshold: 0.3
@@ -38,11 +33,8 @@ async function extractGroupDescriptors(imagePath) {
     .withFaceLandmarks()
     .withFaceDescriptors();
     
-    console.log('Face detection completed. Found', detections.length, 'faces');
-    
     if (detections.length === 0) {
       // Try with different parameters
-      console.log('No faces found with default parameters, trying with lower threshold...');
       const detections2 = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
         inputSize: 256,
         scoreThreshold: 0.1
@@ -50,17 +42,13 @@ async function extractGroupDescriptors(imagePath) {
       .withFaceLandmarks()
       .withFaceDescriptors();
       
-      console.log('Second attempt found', detections2.length, 'faces');
-      
       if (detections2.length === 0) {
         throw new Error('No faces detected in the group photo. Please ensure the photo contains clear, visible faces with good lighting and minimal obstructions.');
       }
       
-      console.log(`Successfully extracted ${detections2.length} face descriptors from group photo`);
       return detections2.map(det => Array.from(det.descriptor));
     }
     
-    console.log(`Successfully extracted ${detections.length} face descriptors from group photo`);
     return detections.map(det => Array.from(det.descriptor));
   } catch (error) {
     console.error('Error in extractGroupDescriptors:', error);
@@ -79,7 +67,6 @@ function getCell(row, possibleKeys) {
 }
 
 exports.addSchool = async (req, res) => {
-  console.log('Reached schoolController.addSchool. Files:', req.files, 'Body:', req.body);
   try {
     const xlsFile = req.files.xlsFile ? req.files.xlsFile[0] : null;
     const groupPhoto = req.files.groupPhoto ? req.files.groupPhoto[0] : null;
@@ -119,11 +106,9 @@ exports.addSchool = async (req, res) => {
     // Extract and save group descriptors if group photo exists
     if (groupPhoto) {
       try {
-        console.log('Extracting face descriptors from group photo...');
         const descriptors = await extractGroupDescriptors(groupPhoto.path);
         school.groupDescriptors = descriptors;
         await school.save();
-        console.log(`Successfully saved ${descriptors.length} face descriptors for school: ${school.name}`);
       } catch (err) {
         console.error('Error extracting group descriptors:', err);
       }
@@ -233,7 +218,6 @@ exports.deleteSchool = async (req, res) => {
 exports.regenerateGroupDescriptors = async (req, res) => {
   try {
     const { schoolId } = req.params;
-    console.log('Regenerating group descriptors for school:', schoolId);
     
     const school = await School.findById(schoolId);
     if (!school) {
@@ -251,11 +235,7 @@ exports.regenerateGroupDescriptors = async (req, res) => {
       });
     }
     
-    console.log('Group photo file exists at:', school.groupPhoto);
-    console.log('File size:', fs.statSync(school.groupPhoto).size, 'bytes');
-    
     try {
-      console.log('Starting face descriptor extraction...');
       const descriptors = await extractGroupDescriptors(school.groupPhoto);
       
       if (!descriptors || descriptors.length === 0) {
@@ -267,8 +247,6 @@ exports.regenerateGroupDescriptors = async (req, res) => {
       
       school.groupDescriptors = descriptors;
       await school.save();
-      
-      console.log(`Successfully regenerated ${descriptors.length} face descriptors for school: ${school.name}`);
       
       res.json({
         message: `Successfully regenerated ${descriptors.length} face descriptors`,

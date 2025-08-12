@@ -4,7 +4,6 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
-console.log('NODE_ENV:', process.env.NODE_ENV);
 
 // Initialize Express app
 const app = express();
@@ -21,7 +20,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Middleware to set CORS headers manually (for debugging)
 app.use((req, res, next) => {
-  console.log('Incoming request origin:', req.headers.origin);
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
