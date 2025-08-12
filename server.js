@@ -8,45 +8,24 @@ require('dotenv').config();
 // Initialize Express app
 const app = express();
 
+// Middleware to set CORS headers manually (for debugging)
+app.use((req, res, next) => {
+  console.log('Incoming request origin:', req.headers.origin);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
-// Define allowed origins
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://fe-face-verification-app.onrender.com'
-];
-
-// CORS configuration - Use only one CORS middleware
-app.use(cors({
-  origin: '*' ,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
-}));
-
-// Handle preflight requests for all routes
-app.options('*', cors());
-
-// Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Serve static files from uploads directory
-app.use('/uploads', express.static(uploadsDir));
-
-// Health check route
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Server is running',
-    timestamp: new Date().toISOString() 
-  });
-});
 
 // Route imports
 const authRoutes = require('./routes/auth');
