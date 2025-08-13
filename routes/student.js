@@ -19,6 +19,7 @@ const formatStudentResponse = (student) => {
   return {
     _id: student._id,
     name: student.name,
+    registrationNo: student.registrationNo,
     rollNumber: student.rollNumber,
     class: student.class,
     dob: student.dob,
@@ -74,7 +75,8 @@ router.get('/', auth, async (req, res) => {
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
-        { rollNumber: { $regex: search, $options: 'i' } }
+        { rollNumber: { $regex: search, $options: 'i' } },
+        { registrationNo: { $regex: search, $options: 'i' } }
       ];
     }
 
