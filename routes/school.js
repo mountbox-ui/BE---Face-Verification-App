@@ -350,6 +350,7 @@ router.get('/:schoolId', auth, async (req, res) => {
     res.json({
       _id: school._id,
       name: school.name,
+      affNo: school.affNo,
       groupPhoto: school.groupPhoto,
       hasGroupDescriptors: school.groupDescriptors && school.groupDescriptors.length > 0,
       descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0,
