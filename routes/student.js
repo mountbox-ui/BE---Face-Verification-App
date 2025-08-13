@@ -373,33 +373,61 @@ router.post('/:id/manual-verify', auth, async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Check if already manually verified
-    if (student.verificationResult === 'manually_verified') {
-      return res.status(400).json({ 
-        message: 'Student is already manually verified',
-        verificationDate: student.manualVerificationDate
-      });
+    // Determine day key if provided
+    let dayKey = null;
+    if (typeof day !== 'undefined' && day !== null) {
+      if (typeof day === 'number') {
+        dayKey = `day${parseInt(day, 10)}`;
+      } else if (typeof day === 'string') {
+        dayKey = /^day[1-6]$/.test(day) ? day : null;
+      }
     }
 
-    // Update student with manual verification
-    student.verified = true;
-    student.verificationResult = 'manually_verified';
-    student.manuallyVerified = true;
-    student.manualVerificationDate = new Date();
-    
-    // Add verification metadata
-    if (reason) student.manualVerificationReason = reason.trim();
-    if (notes) student.manualVerificationNotes = notes.trim();
+    // If a valid day is provided, only update that day (do not set global verification flags)
+    if (dayKey && /^day[1-6]$/.test(dayKey)) {
+      // Prevent duplicate manual verification for the same day
+      if (student.dayVerification?.[dayKey]?.result === 'manually_verified') {
+        return res.status(400).json({ 
+          message: `Student is already manually verified for ${dayKey}`
+        });
+      }
 
-    // If Day 1 manual verify and photo provided, save Day 1 reference photo and day result
-    if ((day === 'day1' || day === 1) && photo) {
-      student.day1Photo = photo;
       student.dayVerification = student.dayVerification || {};
-      student.dayVerification.day1 = {
+      student.dayVerification[dayKey] = {
         result: 'manually_verified',
         confidence: null,
         date: new Date()
       };
+
+      // If Day 1 manual verify and photo provided, save Day 1 reference photo
+      if (dayKey === 'day1' && photo) {
+        student.day1Photo = photo;
+      }
+
+      // Add optional metadata (kept for audit)
+      if (reason) student.manualVerificationReason = reason.trim();
+      if (notes) student.manualVerificationNotes = notes.trim();
+    } else {
+      // No valid day provided: fall back to global manual verification behavior
+      if (student.verificationResult === 'manually_verified') {
+        return res.status(400).json({ 
+          message: 'Student is already manually verified',
+          verificationDate: student.manualVerificationDate
+        });
+      }
+
+      student.verified = true;
+      student.verificationResult = 'manually_verified';
+      student.manuallyVerified = true;
+      student.manualVerificationDate = new Date();
+
+      if (reason) student.manualVerificationReason = reason.trim();
+      if (notes) student.manualVerificationNotes = notes.trim();
+
+      // If Day 1 photo is provided without explicit day, still allow saving
+      if (photo) {
+        student.day1Photo = photo;
+      }
     }
 
     await student.save();
