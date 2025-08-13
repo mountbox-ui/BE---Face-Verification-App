@@ -19,7 +19,7 @@ faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 // Configuration
 const CONFIG = {
   MODELS_PATH: './models/face_models',
-  VERIFICATION_THRESHOLD: 0.6, // Lower is stricter
+  VERIFICATION_THRESHOLD: 0.4, // Stricter threshold - lower means more strict matching
   MAX_IMAGE_SIZE: 5 * 1024 * 1024, // 5MB
   SUPPORTED_FORMATS: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
   DETECTOR_OPTIONS: {
@@ -289,9 +289,12 @@ router.post('/:studentId', auth, async (req, res) => {
         distance,
         confidence: Math.max(0, (1 - distance) * 100)
       };
+      console.log(`Using per-student descriptor - Distance: ${distance}, Threshold: ${verificationThreshold}, Match: ${matchResult.match}`);
     } else {
       // Fall back to group descriptors
+      console.log(`Using group descriptors - Count: ${school.groupDescriptors?.length || 0}`);
       matchResult = findBestMatch(capturedDescriptor, school.groupDescriptors, verificationThreshold);
+      console.log(`Group descriptor match - Distance: ${matchResult.distance}, Threshold: ${verificationThreshold}, Match: ${matchResult.match}`);
     }
 
     // Update student verification status
@@ -319,7 +322,8 @@ router.post('/:studentId', auth, async (req, res) => {
         faceQuality,
         landmarksDetected,
         groupDescriptorsCount: Array.isArray(school.groupDescriptors) ? school.groupDescriptors.length : 0,
-        usedStudentDescriptor: Array.isArray(student.faceDescriptor) && student.faceDescriptor.length === 128
+        usedStudentDescriptor: Array.isArray(student.faceDescriptor) && student.faceDescriptor.length === 128,
+        groupDescriptorsStatus: school.groupDescriptorsStatus || 'unknown'
       }
     };
 
