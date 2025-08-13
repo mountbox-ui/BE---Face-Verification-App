@@ -231,21 +231,35 @@ router.get('/:schoolId/download', auth, async (req, res) => {
 router.get('/:schoolId/download/verified-only', auth, async (req, res) => {
   try {
     const { schoolId } = req.params;
+    const { dayNumber } = req.query;
     
     if (!isValidObjectId(schoolId)) {
       return res.status(400).json({ message: 'Invalid school ID format' });
     }
     
-    // Get school and its verified students only
+    // Get school and its verified students only (optionally by specific day)
     const school = await School.findById(schoolId);
     if (!school) {
       return res.status(404).json({ message: 'School not found' });
     }
-    
-    const verifiedStudents = await Student.find({ 
-      school: schoolId,
-      verificationResult: { $in: ['success', 'manually_verified'] }
-    });
+
+    let verifiedStudents = [];
+    const parsedDay = dayNumber ? parseInt(dayNumber, 10) : null;
+    if (parsedDay && parsedDay >= 1 && parsedDay <= 6) {
+      const dayKey = `day${parsedDay}`;
+      // Filter by day-specific verification success
+      const query = {
+        school: schoolId,
+        [`dayVerification.${dayKey}.result`]: { $in: ['success', 'manually_verified'] }
+      };
+      verifiedStudents = await Student.find(query);
+    } else {
+      // Fallback to overall verification status
+      verifiedStudents = await Student.find({ 
+        school: schoolId,
+        verificationResult: { $in: ['success', 'manually_verified'] }
+      });
+    }
     
     if (verifiedStudents.length === 0) {
       return res.status(404).json({ 
@@ -255,17 +269,28 @@ router.get('/:schoolId/download/verified-only', auth, async (req, res) => {
     }
     
     // Create data for Excel
-    const excelData = verifiedStudents.map(student => ({
-      'Name': student.name,
-      'Roll Number': student.rollNumber,
-      'Class': student.class || 'N/A',
-      'DOB': student.dob ? new Date(student.dob).toLocaleDateString() : 'N/A',
-      'Age Group': student.ageGroup || 'N/A',
-      'Verification Status': student.verificationResult === 'success' ? 'Verified' : 'Manually Verified',
-      'School': school.name,
-      'Verification Date': student.manualVerificationDate || 
-        (student.updatedAt ? student.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
-    }));
+    const excelData = verifiedStudents.map(student => {
+      const row = {
+        'Name': student.name,
+        'Roll Number': student.rollNumber,
+        'Registration No': student.registrationNo || '',
+        'Class': student.class || 'N/A',
+        'DOB': student.dob ? new Date(student.dob).toLocaleDateString() : 'N/A',
+        'Age Group': student.ageGroup || 'N/A',
+        'School': school.name
+      };
+      if (parsedDay && parsedDay >= 1 && parsedDay <= 6) {
+        const dayKey = `day${parsedDay}`;
+        row['Day'] = dayKey.toUpperCase();
+        row['Day Result'] = student.dayVerification?.[dayKey]?.result || '';
+        row['Day Date'] = student.dayVerification?.[dayKey]?.date ? new Date(student.dayVerification[dayKey].date).toISOString().split('T')[0] : '';
+      } else {
+        row['Verification Status'] = student.verificationResult === 'success' ? 'Verified' : 'Manually Verified';
+        row['Verification Date'] = student.manualVerificationDate || 
+          (student.updatedAt ? student.updatedAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+      }
+      return row;
+    });
     
     // Create workbook and worksheet
     const workbook = XLSX.utils.book_new();
@@ -288,7 +313,11 @@ router.get('/:schoolId/download/verified-only', auth, async (req, res) => {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Verified Profiles Only');
     
     // Set headers for file download
-    const filename = sanitizeFilename(`${school.name}_verified_only_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const filename = sanitizeFilename(
+      parsedDay && parsedDay >= 1 && parsedDay <= 6
+        ? `${school.name}_verified_only_day_${parsedDay}_${new Date().toISOString().split('T')[0]}.xlsx`
+        : `${school.name}_verified_only_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'no-cache');
