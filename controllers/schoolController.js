@@ -102,8 +102,24 @@ exports.addSchool = async (req, res) => {
 
 exports.getSchools = async (req, res) => {
   try {
-    const schools = await School.find().select('name affNo _id groupPhoto');
-    res.json(schools);
+    const schools = await School.find().select('name affNo _id groupPhoto').lean();
+
+    // Gather distinct age groups per school
+    const schoolIds = schools.map(s => s._id);
+    const ageGroupsAgg = await Student.aggregate([
+      { $match: { school: { $in: schoolIds } } },
+      { $group: { _id: '$school', ageGroups: { $addToSet: '$ageGroup' } } }
+    ]);
+    const idToAgeGroups = new Map(
+      ageGroupsAgg.map(row => [String(row._id), (row.ageGroups || []).filter(Boolean)])
+    );
+
+    const enriched = schools.map(s => ({
+      ...s,
+      ageGroups: idToAgeGroups.get(String(s._id)) || []
+    }));
+
+    res.json(enriched);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
