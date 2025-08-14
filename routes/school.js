@@ -29,6 +29,34 @@ router.post(
   schoolController.addSchool
 );
 
+// Update coach name for a school
+router.patch('/:schoolId/coach', auth, async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    const { coachName } = req.body;
+    if (!isValidObjectId(schoolId)) {
+      return res.status(400).json({ message: 'Invalid school ID format' });
+    }
+    if (!coachName || String(coachName).trim() === '') {
+      return res.status(400).json({ message: 'coachName is required' });
+    }
+    const school = await School.findByIdAndUpdate(
+      schoolId,
+      { coachName: String(coachName).trim() },
+      { new: true }
+    );
+    if (!school) return res.status(404).json({ message: 'School not found' });
+    res.json({
+      _id: school._id,
+      name: school.name,
+      affNo: school.affNo,
+      coachName: school.coachName
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update coach name', error: err.message });
+  }
+});
+
 // Get all schools
 router.get('/', auth, schoolController.getSchools);
 
@@ -380,6 +408,7 @@ router.get('/:schoolId', auth, async (req, res) => {
       _id: school._id,
       name: school.name,
       affNo: school.affNo,
+      coachName: school.coachName,
       groupPhoto: school.groupPhoto,
       hasGroupDescriptors: school.groupDescriptors && school.groupDescriptors.length > 0,
       descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0,

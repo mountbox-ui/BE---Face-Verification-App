@@ -7,12 +7,19 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../cloudinary');
 
-// Helper to get first non-empty value for a set of possible header names
+// Helper to get first non-empty value for a set of possible header names (robust to case/spacing/underscores)
 function getCell(row, possibleKeys) {
+  if (!row || typeof row !== 'object') return '';
+  const normalize = (s) => String(s).toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+  const map = new Map();
+  for (const [k, v] of Object.entries(row)) {
+    map.set(normalize(k), v);
+  }
   for (const key of possibleKeys) {
-    if (row[key] !== undefined && row[key] !== null && String(row[key]).toString().trim() !== '') {
-      return row[key];
-    }
+    const nk = normalize(key);
+    const val = map.get(nk);
+    if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
   }
   return '';
 }
@@ -37,11 +44,27 @@ exports.addSchool = async (req, res) => {
     const firstRow = data[0];
     const schoolName = getCell(firstRow, ['School', 'school', 'School Name', 'SchoolName']) || 'Unnamed School';
     const affNo = getCell(firstRow, ['Affno', 'Aff No', 'Aff No.', 'AffNo', 'Affiliation No', 'AffiliationNo']);
+    // Coach name may be present in any row; find first non-empty across all rows
+    const coachNameKeys = ['Coach', 'Coach Name', 'CoachName', 'coach', 'coachName', 'Coach name', 'Coach_Name', 'Coachname', 'coach_name'];
+    let coachName = getCell(firstRow, coachNameKeys);
+    if (!coachName) {
+      for (const row of data) {
+        const val = getCell(row, coachNameKeys);
+        if (val) { coachName = val; break; }
+      }
+    }
+    // Log once for debugging (non-fatal)
+    if (!coachName) {
+      try { console.log('Coach name not found. Headers:', Object.keys(firstRow || {})); } catch {}
+    } else {
+      try { console.log('Detected coach name:', coachName); } catch {}
+    }
 
     // Prepare school data
     const schoolData = {
       name: schoolName,
       affNo: affNo || undefined,
+      coachName: coachName || undefined,
       students: []
     };
 
@@ -87,6 +110,7 @@ exports.addSchool = async (req, res) => {
         _id: school._id,
         name: school.name,
         affNo: school.affNo,
+        coachName: school.coachName,
         groupPhoto: school.groupPhoto,
         studentsCount: students.length,
         groupDescriptorsStatus: school.groupDescriptorsStatus || 'idle',
