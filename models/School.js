@@ -16,6 +16,7 @@ const schoolSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
   affNo: { type: String },
   coachName: { type: String },
+  coachPhone: { type: String },
   groupPhoto: String,
   groupDescriptors: [[Number]], // Array of face descriptors
   groupDescriptorsStatus: { type: String, enum: ['idle', 'processing', 'ready', 'error'], default: 'idle' },

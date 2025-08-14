@@ -24,6 +24,23 @@ function getCell(row, possibleKeys) {
   return '';
 }
 
+// Fallback: find a value by scanning header names for terms (e.g., ['coach'] + ['phone','mobile'])
+function getCellByTerms(row, mustContainAny = [], alsoContainAny = []) {
+  if (!row || typeof row !== 'object') return '';
+  const norm = (s) => String(s).toLowerCase();
+  const headers = Object.keys(row);
+  for (const h of headers) {
+    const nh = norm(h);
+    const hasMust = mustContainAny.length === 0 || mustContainAny.some(t => nh.includes(norm(t)));
+    const hasAlso = alsoContainAny.length === 0 || alsoContainAny.some(t => nh.includes(norm(t)));
+    if (hasMust && hasAlso) {
+      const v = row[h];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+  }
+  return '';
+}
+
 exports.addSchool = async (req, res) => {
   try {
     const xlsFile = req.files.xlsFile ? req.files.xlsFile[0] : null;
@@ -46,25 +63,37 @@ exports.addSchool = async (req, res) => {
     const affNo = getCell(firstRow, ['Affno', 'Aff No', 'Aff No.', 'AffNo', 'Affiliation No', 'AffiliationNo']);
     // Coach name may be present in any row; find first non-empty across all rows
     const coachNameKeys = ['Coach', 'Coach Name', 'CoachName', 'coach', 'coachName', 'Coach name', 'Coach_Name', 'Coachname', 'coach_name'];
+    const coachPhoneKeys = ['Coach Phone', 'CoachPhone', 'Coach Mobile', 'CoachMobile', 'Coach Contact', 'CoachContact', 'Coach Phone Number', 'CoachNumber', 'Coach No', 'CoachNo', 'Coach Ph', 'Phone', 'Mobile', 'Contact No', 'ContactNo', 'Contact Number'];
     let coachName = getCell(firstRow, coachNameKeys);
+    let coachPhone = getCell(firstRow, coachPhoneKeys);
     if (!coachName) {
       for (const row of data) {
         const val = getCell(row, coachNameKeys);
         if (val) { coachName = val; break; }
       }
     }
-    // Log once for debugging (non-fatal)
-    if (!coachName) {
-      try { console.log('Coach name not found. Headers:', Object.keys(firstRow || {})); } catch {}
-    } else {
-      try { console.log('Detected coach name:', coachName); } catch {}
+    if (!coachPhone) {
+      for (const row of data) {
+        let val = getCell(row, coachPhoneKeys);
+        if (!val) {
+          // Try fuzzy match: a header that includes 'coach' and ('phone'|'mobile'|'contact'|'number'|'ph'|'no')
+          val = getCellByTerms(row, ['coach'], ['phone','mobile','contact','number','ph','no']);
+        }
+        if (val) { coachPhone = val; break; }
+      }
     }
+    // Log once for debugging (non-fatal)
+    try {
+      if (!coachName) console.log('Coach name not found. Headers:', Object.keys(firstRow || {}));
+      if (!coachPhone) console.log('Coach phone not found. Headers:', Object.keys(firstRow || {}));
+    } catch {}
 
     // Prepare school data
     const schoolData = {
       name: schoolName,
       affNo: affNo || undefined,
       coachName: coachName || undefined,
+      coachPhone: coachPhone || undefined,
       students: []
     };
 
@@ -111,6 +140,7 @@ exports.addSchool = async (req, res) => {
         name: school.name,
         affNo: school.affNo,
         coachName: school.coachName,
+        coachPhone: school.coachPhone,
         groupPhoto: school.groupPhoto,
         studentsCount: students.length,
         groupDescriptorsStatus: school.groupDescriptorsStatus || 'idle',

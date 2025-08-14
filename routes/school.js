@@ -57,6 +57,33 @@ router.patch('/:schoolId/coach', auth, async (req, res) => {
   }
 });
 
+// Update coach phone for a school
+router.patch('/:schoolId/coach-phone', auth, async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    const { coachPhone } = req.body;
+    if (!isValidObjectId(schoolId)) {
+      return res.status(400).json({ message: 'Invalid school ID format' });
+    }
+    if (!coachPhone || String(coachPhone).toString().trim() === '') {
+      return res.status(400).json({ message: 'coachPhone is required' });
+    }
+    const school = await School.findByIdAndUpdate(
+      schoolId,
+      { coachPhone: String(coachPhone) },
+      { new: true }
+    );
+    if (!school) return res.status(404).json({ message: 'School not found' });
+    res.json({
+      _id: school._id,
+      name: school.name,
+      coachPhone: school.coachPhone
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update coach phone', error: err.message });
+  }
+});
+
 // Get all schools
 router.get('/', auth, schoolController.getSchools);
 
@@ -409,6 +436,7 @@ router.get('/:schoolId', auth, async (req, res) => {
       name: school.name,
       affNo: school.affNo,
       coachName: school.coachName,
+      coachPhone: school.coachPhone,
       groupPhoto: school.groupPhoto,
       hasGroupDescriptors: school.groupDescriptors && school.groupDescriptors.length > 0,
       descriptorsCount: school.groupDescriptors ? school.groupDescriptors.length : 0,
