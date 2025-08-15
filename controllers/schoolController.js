@@ -37,11 +37,15 @@ exports.addSchool = async (req, res) => {
     const firstRow = data[0];
     const schoolName = getCell(firstRow, ['School', 'school', 'School Name', 'SchoolName']) || 'Unnamed School';
     const affNo = getCell(firstRow, ['Affno', 'Aff No', 'Aff No.', 'AffNo', 'Affiliation No', 'AffiliationNo']);
+    const coachName = getCell(firstRow, ['Coach', 'Coach Name', 'CoachName', 'coach', 'coachName']);
+    const coachPhone = getCell(firstRow, ['Coach Phone', 'CoachPhone', 'Phone', 'Phone Number', 'phone', 'phoneNumber']);
 
     // Prepare school data
     const schoolData = {
       name: schoolName,
       affNo: affNo || undefined,
+      coachName: coachName || undefined,
+      coachPhone: coachPhone || undefined,
       students: []
     };
 
@@ -102,7 +106,7 @@ exports.addSchool = async (req, res) => {
 
 exports.getSchools = async (req, res) => {
   try {
-    const schools = await School.find().select('name affNo _id groupPhoto').lean();
+    const schools = await School.find().select('name affNo coachName coachPhone _id groupPhoto').lean();
 
     // Gather distinct age groups per school
     const schoolIds = schools.map(s => s._id);
@@ -146,6 +150,8 @@ exports.getSchoolById = async (req, res) => {
       _id: school._id,
       name: school.name,
       affNo: school.affNo,
+      coachName: school.coachName || null,
+      coachPhone: school.coachPhone || null,
       groupPhoto: school.groupPhoto,
       groupDescriptorsStatus: school.groupDescriptorsStatus,
       groupDescriptorsUpdatedAt: school.groupDescriptorsUpdatedAt,
