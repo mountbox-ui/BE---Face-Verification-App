@@ -7,6 +7,7 @@ const School = require('../models/School');
 const Student = require('../models/Student');
 const XLSX = require('xlsx');
 const path = require('path');
+const cloudinary = require('../cloudinary');
 
 // Helper function to sanitize filename
 const sanitizeFilename = (filename) => {
@@ -28,6 +29,48 @@ router.post(
   ]),
   schoolController.addSchool
 );
+
+// Replace group photo for a school
+router.post('/:schoolId/replace-group-photo', auth, upload.single('groupPhoto'), async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    if (!isValidObjectId(schoolId)) {
+      return res.status(400).json({ message: 'Invalid school ID format' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No group photo provided' });
+    }
+
+    const school = await School.findById(schoolId);
+    if (!school) return res.status(404).json({ message: 'School not found' });
+
+    // Upload new image to Cloudinary
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream({ folder: 'group-photos', resource_type: 'image' }, (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      });
+      stream.end(req.file.buffer);
+    });
+
+    // Optionally: delete old Cloudinary image if needed (requires storing public_id)
+    // For now, only replace URL
+    school.groupPhoto = uploadResult.secure_url;
+    school.groupDescriptorsStatus = 'processing'; // mark to regenerate
+    school.groupDescriptorsUpdatedAt = new Date();
+    await school.save();
+
+    res.json({
+      message: 'Group photo replaced successfully',
+      groupPhoto: school.groupPhoto,
+      status: school.groupDescriptorsStatus
+    });
+  } catch (err) {
+    console.error('Replace group photo error:', err);
+    res.status(500).json({ message: 'Failed to replace group photo', error: err.message });
+  }
+});
 
 // Get all schools
 router.get('/', auth, schoolController.getSchools);
