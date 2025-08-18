@@ -55,10 +55,12 @@ router.post('/:schoolId/replace-group-photo', auth, upload.single('groupPhoto'),
     });
 
     // Optionally: delete old Cloudinary image if needed (requires storing public_id)
-    // For now, only replace URL
+    // For now, only replace URL and clear any existing descriptors
     school.groupPhoto = uploadResult.secure_url;
-    school.groupDescriptorsStatus = 'processing'; // mark to regenerate
-    school.groupDescriptorsUpdatedAt = new Date();
+    school.groupDescriptors = [];
+    school.groupDescriptorsStatus = 'idle';
+    school.groupDescriptorsError = null;
+    school.groupDescriptorsUpdatedAt = null;
     await school.save();
 
     res.json({
