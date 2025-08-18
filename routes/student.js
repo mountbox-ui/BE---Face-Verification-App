@@ -467,8 +467,8 @@ router.post('/:id/reset-verification', auth, async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Check if already pending
-    if (student.verificationResult === 'pending' || !student.verificationResult) {
+    // Check if already pending; allow clearing Day 1 photo even if pending
+    if ((student.verificationResult === 'pending' || !student.verificationResult) && !clearDay1Photo) {
       return res.status(400).json({ 
         message: 'Student verification is already pending'
       });
@@ -476,13 +476,15 @@ router.post('/:id/reset-verification', auth, async (req, res) => {
 
     const previousStatus = student.verificationResult;
 
-    // Reset verification status to pending
-    student.verified = false;
-    student.verificationResult = 'pending';
-    student.manuallyVerified = false;
-    student.manualVerificationDate = null;
-    student.manualVerificationReason = null;
-    student.manualVerificationNotes = null;
+    // Reset verification status to pending only if it isn't already pending
+    if (student.verificationResult !== 'pending' && student.verificationResult) {
+      student.verified = false;
+      student.verificationResult = 'pending';
+      student.manuallyVerified = false;
+      student.manualVerificationDate = null;
+      student.manualVerificationReason = null;
+      student.manualVerificationNotes = null;
+    }
     
     // Add reset metadata
     student.lastResetDate = new Date();
