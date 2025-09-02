@@ -11,7 +11,7 @@ router.post('/login', async (req, res) => {
     console.log('Received login attempt with body:', req.body);
 
     // Check for specific hardcoded credentials
-    if (username === 'admin' && password === 'admin123') {
+    if (username === 'user' && password === 'user123') {
       return res.json({
         message: 'Login successful',
         token: 'mock-admin-token', // Provide a mock token for admin
